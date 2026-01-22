@@ -28,6 +28,7 @@ const navItems = [
   { icon: Home, label: 'Dashboard', href: '/dashboard' },
   { icon: Package, label: 'Inventory', href: '/inventory' },
   { icon: Receipt, label: 'Billing', href: '/billing' },
+  { icon: User, label: 'Customers', href: '/customers' },
   { icon: QrCode, label: 'Scan', href: '/scan' },
   { icon: FolderOpen, label: 'Categories', href: '/categories' },
   { icon: BarChart3, label: 'Reports', href: '/reports' },
