@@ -54,20 +54,38 @@ export default function Auth() {
       if (mode === 'signin') {
         const { error } = await signIn(data.email, data.password);
         if (error) {
+          let message = 'Invalid credentials';
+          if (error.message.includes('Invalid login credentials')) {
+            message = 'Invalid email or password. Please try again.';
+          } else if (error.message.includes('Email not confirmed')) {
+            message = 'Please confirm your email before signing in.';
+          } else {
+            message = error.message;
+          }
           toast({
             title: 'Sign in failed',
-            description: error.message || 'Invalid credentials',
+            description: message,
             variant: 'destructive',
           });
           return;
         }
-        navigate('/dashboard');
+        toast({
+          title: 'Welcome back!',
+          description: 'Successfully signed in.',
+        });
+        // Navigation handled by auth state change detecting user
       } else {
         const { error } = await signUp(data.email, data.password, data.fullName);
         if (error) {
+          let message = 'Could not create account';
+          if (error.message.includes('already registered')) {
+            message = 'This email is already registered. Please sign in instead.';
+          } else {
+            message = error.message;
+          }
           toast({
             title: 'Sign up failed',
-            description: error.message || 'Could not create account',
+            description: message,
             variant: 'destructive',
           });
           return;
@@ -76,7 +94,7 @@ export default function Auth() {
           title: 'Account created!',
           description: 'Welcome to SuitStock. You are now logged in.',
         });
-        navigate('/dashboard');
+        // Navigation handled by auth state change detecting user
       }
     } finally {
       setIsLoading(false);

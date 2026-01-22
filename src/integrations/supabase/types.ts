@@ -44,6 +44,54 @@ export type Database = {
         }
         Relationships: []
       }
+      customers: {
+        Row: {
+          address: string | null
+          city: string | null
+          created_at: string
+          created_by: string | null
+          email: string | null
+          id: string
+          name: string
+          name_hindi: string | null
+          notes: string | null
+          outstanding_balance: number
+          phone: string | null
+          total_purchases: number
+          updated_at: string
+        }
+        Insert: {
+          address?: string | null
+          city?: string | null
+          created_at?: string
+          created_by?: string | null
+          email?: string | null
+          id?: string
+          name: string
+          name_hindi?: string | null
+          notes?: string | null
+          outstanding_balance?: number
+          phone?: string | null
+          total_purchases?: number
+          updated_at?: string
+        }
+        Update: {
+          address?: string | null
+          city?: string | null
+          created_at?: string
+          created_by?: string | null
+          email?: string | null
+          id?: string
+          name?: string
+          name_hindi?: string | null
+          notes?: string | null
+          outstanding_balance?: number
+          phone?: string | null
+          total_purchases?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       inventory_logs: {
         Row: {
           change_type: string
@@ -155,6 +203,7 @@ export type Database = {
         Row: {
           created_at: string
           created_by: string | null
+          customer_id: string | null
           customer_name: string | null
           customer_phone: string | null
           discount_amount: number
@@ -171,6 +220,7 @@ export type Database = {
         Insert: {
           created_at?: string
           created_by?: string | null
+          customer_id?: string | null
           customer_name?: string | null
           customer_phone?: string | null
           discount_amount?: number
@@ -187,6 +237,7 @@ export type Database = {
         Update: {
           created_at?: string
           created_by?: string | null
+          customer_id?: string | null
           customer_name?: string | null
           customer_phone?: string | null
           discount_amount?: number
@@ -200,7 +251,15 @@ export type Database = {
           total_amount?: number
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "invoices_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
