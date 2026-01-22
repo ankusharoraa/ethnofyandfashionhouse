@@ -91,6 +91,117 @@ export type Database = {
           },
         ]
       }
+      invoice_items: {
+        Row: {
+          created_at: string
+          id: string
+          invoice_id: string
+          length_metres: number | null
+          line_total: number
+          price_type: Database["public"]["Enums"]["price_type"]
+          quantity: number | null
+          rate: number | null
+          sku_code: string
+          sku_id: string
+          sku_name: string
+          unit_price: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          invoice_id: string
+          length_metres?: number | null
+          line_total: number
+          price_type: Database["public"]["Enums"]["price_type"]
+          quantity?: number | null
+          rate?: number | null
+          sku_code: string
+          sku_id: string
+          sku_name: string
+          unit_price: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          invoice_id?: string
+          length_metres?: number | null
+          line_total?: number
+          price_type?: Database["public"]["Enums"]["price_type"]
+          quantity?: number | null
+          rate?: number | null
+          sku_code?: string
+          sku_id?: string
+          sku_name?: string
+          unit_price?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoice_items_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoice_items_sku_id_fkey"
+            columns: ["sku_id"]
+            isOneToOne: false
+            referencedRelation: "skus"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      invoices: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          customer_name: string | null
+          customer_phone: string | null
+          discount_amount: number
+          id: string
+          invoice_number: string
+          notes: string | null
+          payment_method: Database["public"]["Enums"]["payment_method"]
+          status: Database["public"]["Enums"]["invoice_status"]
+          subtotal: number
+          tax_amount: number
+          total_amount: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          customer_name?: string | null
+          customer_phone?: string | null
+          discount_amount?: number
+          id?: string
+          invoice_number: string
+          notes?: string | null
+          payment_method?: Database["public"]["Enums"]["payment_method"]
+          status?: Database["public"]["Enums"]["invoice_status"]
+          subtotal?: number
+          tax_amount?: number
+          total_amount?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          customer_name?: string | null
+          customer_phone?: string | null
+          discount_amount?: number
+          id?: string
+          invoice_number?: string
+          notes?: string | null
+          payment_method?: Database["public"]["Enums"]["payment_method"]
+          status?: Database["public"]["Enums"]["invoice_status"]
+          subtotal?: number
+          tax_amount?: number
+          total_amount?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
@@ -245,10 +356,21 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      cancel_invoice: { Args: { p_invoice_id: string }; Returns: Json }
+      complete_invoice: {
+        Args: {
+          p_invoice_id: string
+          p_payment_method?: Database["public"]["Enums"]["payment_method"]
+        }
+        Returns: Json
+      }
+      generate_invoice_number: { Args: never; Returns: string }
       is_authenticated_user: { Args: never; Returns: boolean }
       is_owner: { Args: never; Returns: boolean }
     }
     Enums: {
+      invoice_status: "draft" | "completed" | "cancelled"
+      payment_method: "cash" | "upi" | "card" | "credit"
       price_type: "per_metre" | "fixed"
       sync_status: "synced" | "pending" | "offline"
       user_role: "owner" | "staff"
@@ -379,6 +501,8 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      invoice_status: ["draft", "completed", "cancelled"],
+      payment_method: ["cash", "upi", "card", "credit"],
       price_type: ["per_metre", "fixed"],
       sync_status: ["synced", "pending", "offline"],
       user_role: ["owner", "staff"],

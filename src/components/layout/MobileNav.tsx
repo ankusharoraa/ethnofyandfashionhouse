@@ -4,7 +4,7 @@ import {
   Home,
   Package,
   QrCode,
-  BarChart3,
+  Receipt,
   Settings,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -12,8 +12,8 @@ import { cn } from '@/lib/utils';
 const navItems = [
   { icon: Home, label: 'Home', href: '/dashboard' },
   { icon: Package, label: 'Inventory', href: '/inventory' },
+  { icon: Receipt, label: 'Billing', href: '/billing' },
   { icon: QrCode, label: 'Scan', href: '/scan' },
-  { icon: BarChart3, label: 'Reports', href: '/reports' },
   { icon: Settings, label: 'Settings', href: '/settings' },
 ];
 
