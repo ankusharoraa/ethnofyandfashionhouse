@@ -52,7 +52,7 @@ type SKUFormData = z.infer<typeof skuSchema>;
 interface SKUFormProps {
   open: boolean;
   onClose: () => void;
-  onSubmit: (data: Partial<SKU>) => Promise<void>;
+  onSubmit: (data: Partial<SKU>) => Promise<SKU | null | void>;
   sku?: SKU | null;
   categories: Category[];
   subcategories: Subcategory[];
