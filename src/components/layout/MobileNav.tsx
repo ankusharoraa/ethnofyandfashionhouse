@@ -14,7 +14,7 @@ const navItems = [
   { icon: Package, label: 'Inventory', href: '/inventory' },
   { icon: Receipt, label: 'Billing', href: '/billing' },
   { icon: QrCode, label: 'Scan', href: '/scan' },
-  { icon: Settings, label: 'Settings', href: '/settings' },
+  { icon: Settings, label: 'More', href: '/settings' },
 ];
 
 export function MobileNav() {

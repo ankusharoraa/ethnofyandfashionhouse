@@ -201,6 +201,7 @@ export type Database = {
       }
       invoices: {
         Row: {
+          amount_paid: number
           created_at: string
           created_by: string | null
           customer_id: string | null
@@ -209,15 +210,20 @@ export type Database = {
           discount_amount: number
           id: string
           invoice_number: string
+          invoice_type: Database["public"]["Enums"]["invoice_type"]
           notes: string | null
           payment_method: Database["public"]["Enums"]["payment_method"]
+          pending_amount: number
           status: Database["public"]["Enums"]["invoice_status"]
           subtotal: number
+          supplier_id: string | null
+          supplier_name: string | null
           tax_amount: number
           total_amount: number
           updated_at: string
         }
         Insert: {
+          amount_paid?: number
           created_at?: string
           created_by?: string | null
           customer_id?: string | null
@@ -226,15 +232,20 @@ export type Database = {
           discount_amount?: number
           id?: string
           invoice_number: string
+          invoice_type?: Database["public"]["Enums"]["invoice_type"]
           notes?: string | null
           payment_method?: Database["public"]["Enums"]["payment_method"]
+          pending_amount?: number
           status?: Database["public"]["Enums"]["invoice_status"]
           subtotal?: number
+          supplier_id?: string | null
+          supplier_name?: string | null
           tax_amount?: number
           total_amount?: number
           updated_at?: string
         }
         Update: {
+          amount_paid?: number
           created_at?: string
           created_by?: string | null
           customer_id?: string | null
@@ -243,10 +254,14 @@ export type Database = {
           discount_amount?: number
           id?: string
           invoice_number?: string
+          invoice_type?: Database["public"]["Enums"]["invoice_type"]
           notes?: string | null
           payment_method?: Database["public"]["Enums"]["payment_method"]
+          pending_amount?: number
           status?: Database["public"]["Enums"]["invoice_status"]
           subtotal?: number
+          supplier_id?: string | null
+          supplier_name?: string | null
           tax_amount?: number
           total_amount?: number
           updated_at?: string
@@ -257,6 +272,13 @@ export type Database = {
             columns: ["customer_id"]
             isOneToOne: false
             referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
             referencedColumns: ["id"]
           },
         ]
@@ -288,6 +310,60 @@ export type Database = {
           role?: Database["public"]["Enums"]["user_role"]
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      shop_settings: {
+        Row: {
+          address: string | null
+          city: string | null
+          created_at: string
+          email: string | null
+          gstin: string | null
+          id: string
+          logo_url: string | null
+          phone: string | null
+          pincode: string | null
+          shop_name: string
+          shop_name_hindi: string | null
+          state: string | null
+          tagline: string | null
+          terms_and_conditions: string | null
+          updated_at: string
+        }
+        Insert: {
+          address?: string | null
+          city?: string | null
+          created_at?: string
+          email?: string | null
+          gstin?: string | null
+          id?: string
+          logo_url?: string | null
+          phone?: string | null
+          pincode?: string | null
+          shop_name?: string
+          shop_name_hindi?: string | null
+          state?: string | null
+          tagline?: string | null
+          terms_and_conditions?: string | null
+          updated_at?: string
+        }
+        Update: {
+          address?: string | null
+          city?: string | null
+          created_at?: string
+          email?: string | null
+          gstin?: string | null
+          id?: string
+          logo_url?: string | null
+          phone?: string | null
+          pincode?: string | null
+          shop_name?: string
+          shop_name_hindi?: string | null
+          state?: string | null
+          tagline?: string | null
+          terms_and_conditions?: string | null
+          updated_at?: string
         }
         Relationships: []
       }
@@ -375,6 +451,30 @@ export type Database = {
           },
         ]
       }
+      staff_permissions: {
+        Row: {
+          created_at: string
+          granted_by: string | null
+          id: string
+          permission: Database["public"]["Enums"]["permission_type"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          granted_by?: string | null
+          id?: string
+          permission: Database["public"]["Enums"]["permission_type"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          granted_by?: string | null
+          id?: string
+          permission?: Database["public"]["Enums"]["permission_type"]
+          user_id?: string
+        }
+        Relationships: []
+      }
       subcategories: {
         Row: {
           category_id: string
@@ -410,12 +510,108 @@ export type Database = {
           },
         ]
       }
+      supplier_payments: {
+        Row: {
+          amount: number
+          created_at: string
+          created_by: string | null
+          id: string
+          notes: string | null
+          payment_date: string
+          payment_method: Database["public"]["Enums"]["payment_method"]
+          supplier_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          notes?: string | null
+          payment_date?: string
+          payment_method?: Database["public"]["Enums"]["payment_method"]
+          supplier_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          notes?: string | null
+          payment_date?: string
+          payment_method?: Database["public"]["Enums"]["payment_method"]
+          supplier_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "supplier_payments_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      suppliers: {
+        Row: {
+          address: string | null
+          city: string | null
+          created_at: string
+          created_by: string | null
+          email: string | null
+          gstin: string | null
+          id: string
+          name: string
+          name_hindi: string | null
+          notes: string | null
+          outstanding_balance: number
+          phone: string | null
+          total_paid: number
+          total_purchases: number
+          updated_at: string
+        }
+        Insert: {
+          address?: string | null
+          city?: string | null
+          created_at?: string
+          created_by?: string | null
+          email?: string | null
+          gstin?: string | null
+          id?: string
+          name: string
+          name_hindi?: string | null
+          notes?: string | null
+          outstanding_balance?: number
+          phone?: string | null
+          total_paid?: number
+          total_purchases?: number
+          updated_at?: string
+        }
+        Update: {
+          address?: string | null
+          city?: string | null
+          created_at?: string
+          created_by?: string | null
+          email?: string | null
+          gstin?: string | null
+          id?: string
+          name?: string
+          name_hindi?: string | null
+          notes?: string | null
+          outstanding_balance?: number
+          phone?: string | null
+          total_paid?: number
+          total_purchases?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
       cancel_invoice: { Args: { p_invoice_id: string }; Returns: Json }
+      cancel_purchase_invoice: { Args: { p_invoice_id: string }; Returns: Json }
       complete_invoice: {
         Args: {
           p_invoice_id: string
@@ -423,13 +619,47 @@ export type Database = {
         }
         Returns: Json
       }
+      complete_purchase_invoice: {
+        Args: {
+          p_amount_paid?: number
+          p_invoice_id: string
+          p_payment_method?: Database["public"]["Enums"]["payment_method"]
+        }
+        Returns: Json
+      }
       generate_invoice_number: { Args: never; Returns: string }
+      has_permission: {
+        Args: {
+          _permission: Database["public"]["Enums"]["permission_type"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
       is_authenticated_user: { Args: never; Returns: boolean }
       is_owner: { Args: never; Returns: boolean }
+      record_supplier_payment: {
+        Args: {
+          p_amount: number
+          p_notes?: string
+          p_payment_method?: Database["public"]["Enums"]["payment_method"]
+          p_supplier_id: string
+        }
+        Returns: Json
+      }
     }
     Enums: {
       invoice_status: "draft" | "completed" | "cancelled"
+      invoice_type: "sale" | "purchase"
       payment_method: "cash" | "upi" | "card" | "credit"
+      permission_type:
+        | "sales_bill"
+        | "purchase_bill"
+        | "stock_edit"
+        | "receive_payment"
+        | "pay_supplier"
+        | "view_reports"
+        | "view_profit"
+        | "manage_employees"
       price_type: "per_metre" | "fixed"
       sync_status: "synced" | "pending" | "offline"
       user_role: "owner" | "staff"
@@ -561,7 +791,18 @@ export const Constants = {
   public: {
     Enums: {
       invoice_status: ["draft", "completed", "cancelled"],
+      invoice_type: ["sale", "purchase"],
       payment_method: ["cash", "upi", "card", "credit"],
+      permission_type: [
+        "sales_bill",
+        "purchase_bill",
+        "stock_edit",
+        "receive_payment",
+        "pay_supplier",
+        "view_reports",
+        "view_profit",
+        "manage_employees",
+      ],
       price_type: ["per_metre", "fixed"],
       sync_status: ["synced", "pending", "offline"],
       user_role: ["owner", "staff"],
