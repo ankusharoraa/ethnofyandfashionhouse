@@ -6,6 +6,7 @@ import type { SKU } from './useSKUs';
 
 export type InvoiceStatus = 'draft' | 'completed' | 'cancelled';
 export type PaymentMethod = 'cash' | 'upi' | 'card' | 'credit';
+export type InvoiceType = 'sale' | 'purchase';
 
 export interface InvoiceItem {
   id?: string;
@@ -27,12 +28,18 @@ export interface InvoiceItem {
 export interface Invoice {
   id: string;
   invoice_number: string;
+  invoice_type: InvoiceType;
+  customer_id: string | null;
   customer_name: string | null;
   customer_phone: string | null;
+  supplier_id: string | null;
+  supplier_name: string | null;
   subtotal: number;
   discount_amount: number;
   tax_amount: number;
   total_amount: number;
+  amount_paid: number;
+  pending_amount: number;
   payment_method: PaymentMethod;
   status: InvoiceStatus;
   notes: string | null;
@@ -51,16 +58,22 @@ export function useBilling() {
   const { user } = useAuth();
 
   // Fetch all invoices
-  const fetchInvoices = async () => {
+  const fetchInvoices = async (type?: InvoiceType) => {
     setIsLoading(true);
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('invoices')
         .select(`
           *,
           invoice_items(*)
         `)
         .order('created_at', { ascending: false });
+
+      if (type) {
+        query = query.eq('invoice_type', type);
+      }
+
+      const { data, error } = await query;
 
       if (error) {
         console.error('Error fetching invoices:', error);
@@ -187,8 +200,14 @@ export function useBilling() {
     };
   }, [cartItems]);
 
-  // Create draft invoice
-  const createDraftInvoice = async (customerName?: string, customerPhone?: string) => {
+  // Create draft invoice (sales or purchase)
+  const createDraftInvoice = async (
+    invoiceType: InvoiceType = 'sale',
+    customerName?: string,
+    customerPhone?: string,
+    supplierId?: string,
+    supplierName?: string
+  ) => {
     const invoiceNumber = await generateInvoiceNumber();
     const totals = calculateTotals();
     
@@ -196,8 +215,11 @@ export function useBilling() {
       .from('invoices')
       .insert({
         invoice_number: invoiceNumber,
+        invoice_type: invoiceType,
         customer_name: customerName || null,
         customer_phone: customerPhone || null,
+        supplier_id: supplierId || null,
+        supplier_name: supplierName || null,
         subtotal: totals.subtotal,
         discount_amount: totals.discountAmount,
         tax_amount: totals.taxAmount,
@@ -252,7 +274,7 @@ export function useBilling() {
     return invoice;
   };
 
-  // Complete invoice (atomically deducts stock)
+  // Complete sales invoice (atomically deducts stock)
   const completeInvoice = async (
     invoiceId: string,
     paymentMethod: PaymentMethod = 'cash'
@@ -294,7 +316,51 @@ export function useBilling() {
     return { success: true };
   };
 
-  // Cancel invoice (restores stock if completed)
+  // Complete purchase invoice (atomically adds stock)
+  const completePurchaseInvoice = async (
+    invoiceId: string,
+    paymentMethod: PaymentMethod = 'cash',
+    amountPaid: number = 0
+  ): Promise<{ success: boolean; error?: string }> => {
+    const { data, error } = await supabase.rpc('complete_purchase_invoice', {
+      p_invoice_id: invoiceId,
+      p_payment_method: paymentMethod,
+      p_amount_paid: amountPaid,
+    });
+
+    if (error) {
+      console.error('Error completing purchase invoice:', error);
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to complete purchase invoice',
+        variant: 'destructive',
+      });
+      return { success: false, error: error.message };
+    }
+
+    const result = data as { success: boolean; error?: string; message?: string };
+    
+    if (!result.success) {
+      toast({
+        title: 'Error',
+        description: result.error || 'Failed to complete purchase invoice',
+        variant: 'destructive',
+      });
+      return { success: false, error: result.error };
+    }
+
+    toast({
+      title: 'Success!',
+      description: 'Purchase bill completed and stock updated',
+    });
+
+    clearCart();
+    await fetchInvoices();
+    
+    return { success: true };
+  };
+
+  // Cancel sales invoice (restores stock if completed)
   const cancelInvoice = async (invoiceId: string): Promise<{ success: boolean; error?: string }> => {
     const { data, error } = await supabase.rpc('cancel_invoice', {
       p_invoice_id: invoiceId,
@@ -331,7 +397,44 @@ export function useBilling() {
     return { success: true };
   };
 
-  // Quick bill: create and complete in one step
+  // Cancel purchase invoice (restores stock if completed)
+  const cancelPurchaseInvoice = async (invoiceId: string): Promise<{ success: boolean; error?: string }> => {
+    const { data, error } = await supabase.rpc('cancel_purchase_invoice', {
+      p_invoice_id: invoiceId,
+    });
+
+    if (error) {
+      console.error('Error cancelling purchase invoice:', error);
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to cancel purchase invoice',
+        variant: 'destructive',
+      });
+      return { success: false, error: error.message };
+    }
+
+    const result = data as { success: boolean; error?: string; message?: string };
+    
+    if (!result.success) {
+      toast({
+        title: 'Error',
+        description: result.error || 'Failed to cancel purchase invoice',
+        variant: 'destructive',
+      });
+      return { success: false, error: result.error };
+    }
+
+    toast({
+      title: 'Cancelled',
+      description: 'Purchase invoice cancelled and stock restored',
+    });
+
+    await fetchInvoices();
+    
+    return { success: true };
+  };
+
+  // Quick bill: create and complete sales in one step
   const createAndCompleteBill = async (
     customerName?: string,
     customerPhone?: string,
@@ -369,11 +472,42 @@ export function useBilling() {
     }
 
     // Create draft invoice
-    const invoice = await createDraftInvoice(customerName, customerPhone);
+    const invoice = await createDraftInvoice('sale', customerName, customerPhone);
     if (!invoice) return null;
 
     // Complete the invoice (atomic stock update)
     const result = await completeInvoice(invoice.id, paymentMethod);
+    
+    if (!result.success) {
+      return null;
+    }
+
+    return invoice;
+  };
+
+  // Quick purchase bill: create and complete purchase in one step
+  const createAndCompletePurchaseBill = async (
+    supplierId: string,
+    supplierName: string,
+    paymentMethod: PaymentMethod = 'cash',
+    amountPaid: number = 0
+  ) => {
+    // Validate cart
+    if (cartItems.length === 0) {
+      toast({
+        title: 'Empty Cart',
+        description: 'Add items to the purchase bill first',
+        variant: 'destructive',
+      });
+      return null;
+    }
+
+    // Create draft purchase invoice
+    const invoice = await createDraftInvoice('purchase', undefined, undefined, supplierId, supplierName);
+    if (!invoice) return null;
+
+    // Complete the purchase invoice (atomic stock update)
+    const result = await completePurchaseInvoice(invoice.id, paymentMethod, amountPaid);
     
     if (!result.success) {
       return null;
@@ -401,8 +535,11 @@ export function useBilling() {
     calculateTotals,
     createDraftInvoice,
     completeInvoice,
+    completePurchaseInvoice,
     cancelInvoice,
+    cancelPurchaseInvoice,
     createAndCompleteBill,
+    createAndCompletePurchaseBill,
     generateInvoiceNumber,
   };
 }

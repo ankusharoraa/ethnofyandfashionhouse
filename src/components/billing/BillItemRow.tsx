@@ -8,12 +8,14 @@ interface BillItemRowProps {
   item: InvoiceItem;
   onUpdate: (skuId: string, updates: Partial<InvoiceItem>) => void;
   onRemove: (skuId: string) => void;
+  isPurchase?: boolean;
 }
 
-export function BillItemRow({ item, onUpdate, onRemove }: BillItemRowProps) {
+export function BillItemRow({ item, onUpdate, onRemove, isPurchase = false }: BillItemRowProps) {
   const isPerMetre = item.price_type === 'per_metre';
   const currentValue = isPerMetre ? item.length_metres : item.quantity;
-  const maxValue = item.availableStock || 999;
+  // For purchase, no stock limit; for sales, use available stock
+  const maxValue = isPurchase ? 9999 : (item.availableStock || 999);
 
   const handleIncrement = () => {
     if (currentValue >= maxValue) return;
