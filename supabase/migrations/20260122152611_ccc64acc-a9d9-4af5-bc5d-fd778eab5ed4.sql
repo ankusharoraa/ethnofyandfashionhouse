@@ -22,6 +22,11 @@ CREATE TABLE public.invoices (
   updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
 );
 
+ALTER TABLE public.invoices
+ADD COLUMN IF NOT EXISTS customer_id UUID REFERENCES public.customers(id),
+ADD COLUMN IF NOT EXISTS amount_paid NUMERIC NOT NULL DEFAULT 0,
+ADD COLUMN IF NOT EXISTS pending_amount NUMERIC NOT NULL DEFAULT 0;
+
 -- Create invoice items table
 CREATE TABLE public.invoice_items (
   id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -146,6 +151,11 @@ BEGIN
   
   IF v_invoice_status != 'draft' THEN
     RETURN jsonb_build_object('success', false, 'error', 'Invoice is already ' || v_invoice_status::TEXT);
+  END IF;
+  -- Prevent overpayment
+  v_pending := v_current_stock - COALESCE(p_amount_paid, 0);
+  IF v_pending < 0 THEN
+    RAISE EXCEPTION 'Paid amount exceeds invoice total';
   END IF;
   
   -- Validate stock availability for all items
