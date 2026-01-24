@@ -47,70 +47,49 @@ export function useShopSettings() {
     }
   }, []);
 
-  const updateSettings = async (updates: Partial<ShopSettings>) => {
-    if (!isOwner) {
-      toast({
-        title: 'Permission Denied',
-        description: 'Only owners can update shop settings',
-        variant: 'destructive',
-      });
-      return null;
-    }
-
-    if (!settings) {
-      // Create new settings
-      const { data, error } = await supabase
-        .from('shop_settings')
-        .insert({
-          shop_name: updates.shop_name || 'My Shop',
-          ...updates,
-        })
-        .select()
-        .single();
-
-      if (error) {
-        console.error('Error creating shop settings:', error);
-        toast({
-          title: 'Error',
-          description: 'Failed to save shop settings',
-          variant: 'destructive',
-        });
-        return null;
-      }
-
-      setSettings(data);
-      toast({
-        title: 'Success',
-        description: 'Shop settings saved',
-      });
-      return data;
-    }
-
-    // Update existing settings
-    const { data, error } = await supabase
-      .from('shop_settings')
-      .update(updates)
-      .eq('id', settings.id)
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Error updating shop settings:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to update shop settings',
-        variant: 'destructive',
-      });
-      return null;
-    }
-
-    setSettings(data);
+ const updateSettings = async (updates: Partial<ShopSettings>) => {
+  if (!isOwner) {
     toast({
-      title: 'Success',
-      description: 'Shop settings updated',
+      title: 'Permission Denied',
+      description: 'Only owners can update shop settings',
+      variant: 'destructive',
     });
-    return data;
+    return null;
+  }
+
+  const payload = {
+    id: settings?.id,
+    shop_name: updates.shop_name ?? settings?.shop_name ?? 'My Shop',
+    ...updates,
   };
+
+  const { data, error } = await supabase
+    .from('shop_settings')
+    .upsert(payload, {
+      onConflict: 'id',
+    })
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error saving shop settings:', error);
+    toast({
+      title: 'Error',
+      description: 'Failed to save shop settings',
+      variant: 'destructive',
+    });
+    return null;
+  }
+
+  setSettings(data);
+  toast({
+    title: 'Success',
+    description: 'Shop settings saved',
+  });
+
+  return data;
+};
+
 
   useEffect(() => {
     if (user) {
