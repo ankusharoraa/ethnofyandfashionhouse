@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
 import { format } from 'date-fns';
-import { Receipt, User, Phone, CreditCard, Banknote, Smartphone, Clock, XCircle, CheckCircle2, FileText } from 'lucide-react';
+import { Receipt, User, Phone, CreditCard, Banknote, Smartphone, Clock, XCircle, CheckCircle2, FileText, Building2, TrendingUp, TrendingDown } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -29,6 +29,7 @@ export function InvoiceCard({ invoice, onCancel, onViewDetails }: InvoiceCardPro
   const PaymentIcon = paymentIcons[invoice.payment_method];
   const status = statusConfig[invoice.status];
   const StatusIcon = status.icon;
+  const isPurchase = invoice.invoice_type === 'purchase';
 
   return (
     <motion.div
@@ -41,9 +42,16 @@ export function InvoiceCard({ invoice, onCancel, onViewDetails }: InvoiceCardPro
         <div className="flex items-start justify-between gap-4">
           {/* Invoice Info */}
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-1">
-              <Receipt className="w-4 h-4 text-primary" />
+            <div className="flex items-center gap-2 mb-1 flex-wrap">
+              {isPurchase ? (
+                <TrendingDown className="w-4 h-4 text-orange-500" />
+              ) : (
+                <TrendingUp className="w-4 h-4 text-green-500" />
+              )}
               <span className="font-mono font-semibold">{invoice.invoice_number}</span>
+              <Badge variant={isPurchase ? 'secondary' : 'default'} className="text-xs">
+                {isPurchase ? 'Purchase' : 'Sale'}
+              </Badge>
               <Badge className={`${status.color} flex items-center gap-1`}>
                 <StatusIcon className="w-3 h-3" />
                 {invoice.status}
@@ -54,28 +62,44 @@ export function InvoiceCard({ invoice, onCancel, onViewDetails }: InvoiceCardPro
               {format(new Date(invoice.created_at), 'dd MMM yyyy, hh:mm a')}
             </p>
 
-            {(invoice.customer_name || invoice.customer_phone) && (
-              <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                {invoice.customer_name && (
-                  <span className="flex items-center gap-1">
-                    <User className="w-3 h-3" />
-                    {invoice.customer_name}
-                  </span>
-                )}
-                {invoice.customer_phone && (
-                  <span className="flex items-center gap-1">
-                    <Phone className="w-3 h-3" />
-                    {invoice.customer_phone}
-                  </span>
-                )}
-              </div>
+            {/* Customer/Supplier Info */}
+            {isPurchase ? (
+              invoice.supplier_name && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Building2 className="w-3 h-3" />
+                  <span>{invoice.supplier_name}</span>
+                </div>
+              )
+            ) : (
+              (invoice.customer_name || invoice.customer_phone) && (
+                <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                  {invoice.customer_name && (
+                    <span className="flex items-center gap-1">
+                      <User className="w-3 h-3" />
+                      {invoice.customer_name}
+                    </span>
+                  )}
+                  {invoice.customer_phone && (
+                    <span className="flex items-center gap-1">
+                      <Phone className="w-3 h-3" />
+                      {invoice.customer_phone}
+                    </span>
+                  )}
+                </div>
+              )
             )}
 
-            <div className="flex items-center gap-2 mt-2 text-sm">
+            <div className="flex items-center gap-2 mt-2 text-sm flex-wrap">
               <PaymentIcon className="w-4 h-4 text-muted-foreground" />
               <span className="capitalize">{invoice.payment_method}</span>
               <span className="text-muted-foreground">•</span>
               <span>{invoice.invoice_items?.length || 0} items</span>
+              {invoice.pending_amount > 0 && (
+                <>
+                  <span className="text-muted-foreground">•</span>
+                  <span className="text-destructive">₹{invoice.pending_amount.toFixed(0)} pending</span>
+                </>
+              )}
             </div>
           </div>
 

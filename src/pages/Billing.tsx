@@ -8,20 +8,31 @@ import {
   Receipt,
   History,
   CheckCircle2,
+  Package,
+  TrendingUp,
+  TrendingDown,
+  Building2,
+  Eye,
 } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { BillItemRow } from '@/components/billing/BillItemRow';
 import { SKUSearchDialog } from '@/components/billing/SKUSearchDialog';
 import { PaymentDialog } from '@/components/billing/PaymentDialog';
+import { PurchasePaymentDialog } from '@/components/billing/PurchasePaymentDialog';
+import { SupplierSearchDialog } from '@/components/billing/SupplierSearchDialog';
 import { InvoiceCard } from '@/components/billing/InvoiceCard';
+import { InvoiceViewDialog } from '@/components/billing/InvoiceViewDialog';
 import { BarcodeScanner } from '@/components/scanner/BarcodeScanner';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { useBilling, type PaymentMethod } from '@/hooks/useBilling';
+import { Badge } from '@/components/ui/badge';
+import { useBilling, type PaymentMethod, type Invoice } from '@/hooks/useBilling';
 import { useSKUs } from '@/hooks/useSKUs';
+import { useSuppliers, type Supplier } from '@/hooks/useSuppliers';
 import { useToast } from '@/hooks/use-toast';
+import { usePermissions } from '@/hooks/usePermissions';
 
 export default function Billing() {
   const {
@@ -33,17 +44,30 @@ export default function Billing() {
     clearCart,
     calculateTotals,
     createAndCompleteBill,
+    createAndCompletePurchaseBill,
     cancelInvoice,
+    cancelPurchaseInvoice,
   } = useBilling();
   const { skus, findByBarcode } = useSKUs();
+  const { suppliers } = useSuppliers();
+  const { hasPermission } = usePermissions();
   const { toast } = useToast();
 
+  const [billType, setBillType] = useState<'sale' | 'purchase'>('sale');
   const [showSearch, setShowSearch] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
   const [showPayment, setShowPayment] = useState(false);
+  const [showSupplierSearch, setShowSupplierSearch] = useState(false);
+  const [showPurchasePayment, setShowPurchasePayment] = useState(false);
+  const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [viewingInvoice, setViewingInvoice] = useState<Invoice | null>(null);
 
   const totals = calculateTotals();
+
+  // Filter invoices by type
+  const salesInvoices = invoices.filter((i) => i.invoice_type === 'sale');
+  const purchaseInvoices = invoices.filter((i) => i.invoice_type === 'purchase');
 
   const handleScan = async (code: string) => {
     setShowScanner(false);
@@ -64,11 +88,20 @@ export default function Billing() {
     }
   };
 
-  const handlePaymentConfirm = async (
+  const handleSalesPaymentConfirm = async (
     paymentMethod: PaymentMethod,
     customerName?: string,
     customerPhone?: string
   ) => {
+    if (!hasPermission('sales_bill')) {
+      toast({
+        title: 'Permission Denied',
+        description: 'You do not have permission to create sales bills',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setIsProcessing(true);
     try {
       const result = await createAndCompleteBill(customerName, customerPhone, paymentMethod);
@@ -84,16 +117,82 @@ export default function Billing() {
     }
   };
 
-  const handleCancelInvoice = async (invoiceId: string) => {
-    if (confirm('Are you sure you want to cancel this invoice? Stock will be restored.')) {
-      await cancelInvoice(invoiceId);
+  const handlePurchasePaymentConfirm = async (
+    paymentMethod: PaymentMethod,
+    amountPaid: number
+  ) => {
+    if (!hasPermission('purchase_bill')) {
+      toast({
+        title: 'Permission Denied',
+        description: 'You do not have permission to create purchase bills',
+        variant: 'destructive',
+      });
+      return;
     }
+
+    if (!selectedSupplier) {
+      toast({
+        title: 'Select Supplier',
+        description: 'Please select a supplier first',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsProcessing(true);
+    try {
+      const result = await createAndCompletePurchaseBill(
+        selectedSupplier.id,
+        selectedSupplier.name,
+        paymentMethod,
+        amountPaid
+      );
+      if (result) {
+        setShowPurchasePayment(false);
+        setSelectedSupplier(null);
+        toast({
+          title: '✅ Purchase Bill Created!',
+          description: `Invoice ${result.invoice_number} - ₹${totals.totalAmount.toFixed(2)}`,
+        });
+      }
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleCancelInvoice = async (invoiceId: string, type: 'sale' | 'purchase') => {
+    if (confirm('Are you sure you want to cancel this invoice? Stock will be adjusted.')) {
+      if (type === 'sale') {
+        await cancelInvoice(invoiceId);
+      } else {
+        await cancelPurchaseInvoice(invoiceId);
+      }
+    }
+  };
+
+  const handleProceedToPayment = () => {
+    if (billType === 'sale') {
+      setShowPayment(true);
+    } else {
+      if (!selectedSupplier) {
+        setShowSupplierSearch(true);
+      } else {
+        setShowPurchasePayment(true);
+      }
+    }
+  };
+
+  const handleSelectSupplier = (supplier: Supplier) => {
+    setSelectedSupplier(supplier);
+    setShowSupplierSearch(false);
+    // Open payment dialog after selecting supplier
+    setShowPurchasePayment(true);
   };
 
   return (
     <AppLayout>
       <Tabs defaultValue="new-bill" className="space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-4">
           <h1 className="text-2xl font-bold">Billing</h1>
           <TabsList>
             <TabsTrigger value="new-bill" className="gap-2">
@@ -109,6 +208,64 @@ export default function Billing() {
 
         {/* New Bill Tab */}
         <TabsContent value="new-bill" className="space-y-4">
+          {/* Bill Type Selector */}
+          <div className="flex gap-2 p-1 bg-muted rounded-lg w-fit">
+            <Button
+              variant={billType === 'sale' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => {
+                setBillType('sale');
+                clearCart();
+                setSelectedSupplier(null);
+              }}
+              className="gap-2"
+            >
+              <TrendingUp className="w-4 h-4" />
+              Sales Bill (बिक्री)
+            </Button>
+            <Button
+              variant={billType === 'purchase' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => {
+                setBillType('purchase');
+                clearCart();
+                setSelectedSupplier(null);
+              }}
+              className="gap-2"
+            >
+              <TrendingDown className="w-4 h-4" />
+              Purchase Bill (खरीद)
+            </Button>
+          </div>
+
+          {/* Supplier Selection for Purchase */}
+          {billType === 'purchase' && (
+            <Card className="p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Building2 className="w-5 h-5 text-muted-foreground" />
+                  {selectedSupplier ? (
+                    <div>
+                      <p className="font-medium">{selectedSupplier.name}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {selectedSupplier.phone || selectedSupplier.gstin || 'Supplier'}
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="text-muted-foreground">No supplier selected</p>
+                  )}
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowSupplierSearch(true)}
+                >
+                  {selectedSupplier ? 'Change' : 'Select Supplier'}
+                </Button>
+              </div>
+            </Card>
+          )}
+
           {/* Add Item Buttons */}
           <div className="flex gap-3">
             <Button onClick={() => setShowSearch(true)} className="flex-1">
@@ -125,8 +282,8 @@ export default function Billing() {
           <Card className="p-4">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-semibold flex items-center gap-2">
-                <ShoppingCart className="w-4 h-4" />
-                Cart ({cartItems.length} items)
+                <Package className="w-4 h-4" />
+                {billType === 'sale' ? 'Cart' : 'Purchase Items'} ({cartItems.length} items)
               </h2>
               {cartItems.length > 0 && (
                 <Button
@@ -144,7 +301,9 @@ export default function Billing() {
             {cartItems.length === 0 ? (
               <div className="text-center py-12 text-muted-foreground">
                 <ShoppingCart className="w-16 h-16 mx-auto mb-4 opacity-30" />
-                <p className="text-lg">Your cart is empty</p>
+                <p className="text-lg">
+                  {billType === 'sale' ? 'Your cart is empty' : 'No items added'}
+                </p>
                 <p className="text-sm">Add items by searching or scanning</p>
               </div>
             ) : (
@@ -157,6 +316,7 @@ export default function Billing() {
                         item={item}
                         onUpdate={updateCartItem}
                         onRemove={removeFromCart}
+                        isPurchase={billType === 'purchase'}
                       />
                     ))}
                   </AnimatePresence>
@@ -198,10 +358,10 @@ export default function Billing() {
                 <Button
                   size="lg"
                   className="w-full"
-                  onClick={() => setShowPayment(true)}
+                  onClick={handleProceedToPayment}
                 >
                   <CheckCircle2 className="w-5 h-5 mr-2" />
-                  Proceed to Payment
+                  {billType === 'sale' ? 'Proceed to Payment' : 'Complete Purchase'}
                 </Button>
               </Card>
             </motion.div>
@@ -210,27 +370,68 @@ export default function Billing() {
 
         {/* History Tab */}
         <TabsContent value="history">
-          <div className="space-y-3">
-            {invoices.length === 0 ? (
-              <Card className="p-12 text-center">
-                <Receipt className="w-16 h-16 mx-auto mb-4 text-muted-foreground opacity-30" />
-                <p className="text-lg text-muted-foreground">No invoices yet</p>
-                <p className="text-sm text-muted-foreground">
-                  Create your first bill to see it here
-                </p>
-              </Card>
-            ) : (
-              <AnimatePresence>
-                {invoices.map((invoice) => (
-                  <InvoiceCard
-                    key={invoice.id}
-                    invoice={invoice}
-                    onCancel={handleCancelInvoice}
-                  />
-                ))}
-              </AnimatePresence>
-            )}
-          </div>
+          <Tabs defaultValue="sales" className="space-y-4">
+            <TabsList>
+              <TabsTrigger value="sales" className="gap-2">
+                <TrendingUp className="w-4 h-4" />
+                Sales ({salesInvoices.length})
+              </TabsTrigger>
+              <TabsTrigger value="purchases" className="gap-2">
+                <TrendingDown className="w-4 h-4" />
+                Purchases ({purchaseInvoices.length})
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="sales">
+              <div className="space-y-3">
+                {salesInvoices.length === 0 ? (
+                  <Card className="p-12 text-center">
+                    <Receipt className="w-16 h-16 mx-auto mb-4 text-muted-foreground opacity-30" />
+                    <p className="text-lg text-muted-foreground">No sales invoices yet</p>
+                    <p className="text-sm text-muted-foreground">
+                      Create your first sales bill to see it here
+                    </p>
+                  </Card>
+                ) : (
+                  <AnimatePresence>
+                    {salesInvoices.map((invoice) => (
+                      <InvoiceCard
+                        key={invoice.id}
+                        invoice={invoice}
+                        onCancel={(id) => handleCancelInvoice(id, 'sale')}
+                        onViewDetails={setViewingInvoice}
+                      />
+                    ))}
+                  </AnimatePresence>
+                )}
+              </div>
+            </TabsContent>
+
+            <TabsContent value="purchases">
+              <div className="space-y-3">
+                {purchaseInvoices.length === 0 ? (
+                  <Card className="p-12 text-center">
+                    <Receipt className="w-16 h-16 mx-auto mb-4 text-muted-foreground opacity-30" />
+                    <p className="text-lg text-muted-foreground">No purchase invoices yet</p>
+                    <p className="text-sm text-muted-foreground">
+                      Create your first purchase bill to see it here
+                    </p>
+                  </Card>
+                ) : (
+                  <AnimatePresence>
+                    {purchaseInvoices.map((invoice) => (
+                      <InvoiceCard
+                        key={invoice.id}
+                        invoice={invoice}
+                        onCancel={(id) => handleCancelInvoice(id, 'purchase')}
+                        onViewDetails={setViewingInvoice}
+                      />
+                    ))}
+                  </AnimatePresence>
+                )}
+              </div>
+            </TabsContent>
+          </Tabs>
         </TabsContent>
       </Tabs>
 
@@ -246,6 +447,13 @@ export default function Billing() {
         }}
       />
 
+      <SupplierSearchDialog
+        open={showSupplierSearch}
+        onClose={() => setShowSupplierSearch(false)}
+        suppliers={suppliers}
+        onSelect={handleSelectSupplier}
+      />
+
       {showScanner && (
         <BarcodeScanner
           onScan={handleScan}
@@ -257,8 +465,23 @@ export default function Billing() {
         open={showPayment}
         onClose={() => setShowPayment(false)}
         totalAmount={totals.totalAmount}
-        onConfirm={handlePaymentConfirm}
+        onConfirm={handleSalesPaymentConfirm}
         isProcessing={isProcessing}
+      />
+
+      <PurchasePaymentDialog
+        open={showPurchasePayment}
+        onClose={() => setShowPurchasePayment(false)}
+        totalAmount={totals.totalAmount}
+        supplier={selectedSupplier}
+        onConfirm={handlePurchasePaymentConfirm}
+        isProcessing={isProcessing}
+      />
+
+      <InvoiceViewDialog
+        open={!!viewingInvoice}
+        onClose={() => setViewingInvoice(null)}
+        invoice={viewingInvoice}
       />
     </AppLayout>
   );
