@@ -44,6 +44,47 @@ export type Database = {
         }
         Relationships: []
       }
+      customer_advance_refunds: {
+        Row: {
+          amount: number
+          created_at: string
+          created_by: string | null
+          customer_id: string
+          id: string
+          notes: string | null
+          refund_date: string
+          refund_method: Database["public"]["Enums"]["payment_method"]
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          created_by?: string | null
+          customer_id: string
+          id?: string
+          notes?: string | null
+          refund_date?: string
+          refund_method: Database["public"]["Enums"]["payment_method"]
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          created_by?: string | null
+          customer_id?: string
+          id?: string
+          notes?: string | null
+          refund_date?: string
+          refund_method?: Database["public"]["Enums"]["payment_method"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_advance_refunds_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       customer_ledger: {
         Row: {
           created_at: string
@@ -866,6 +907,15 @@ export type Database = {
           p_notes?: string
           p_payment_method?: Database["public"]["Enums"]["payment_method"]
           p_supplier_id: string
+        }
+        Returns: Json
+      }
+      refund_customer_advance: {
+        Args: {
+          p_amount: number
+          p_customer_id: string
+          p_notes?: string
+          p_refund_method?: Database["public"]["Enums"]["payment_method"]
         }
         Returns: Json
       }

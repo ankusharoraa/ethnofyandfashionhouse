@@ -14,6 +14,8 @@ export interface Customer {
   notes: string | null;
   total_purchases: number;
   outstanding_balance: number;
+  advance_balance: number;
+  is_deleted: boolean;
   created_by: string | null;
   created_at: string;
   updated_at: string;

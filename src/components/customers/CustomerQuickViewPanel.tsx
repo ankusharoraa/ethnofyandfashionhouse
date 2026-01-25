@@ -8,11 +8,12 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { CustomerPaymentDialog } from '@/components/customers/CustomerPaymentDialog';
+import { CustomerAdvanceRefundDialog } from '@/components/customers/CustomerAdvanceRefundDialog';
 import { supabase } from '@/integrations/supabase/client';
 
 import type { Customer } from '@/hooks/useCustomers';
 
-type LedgerEntryType = 'sale' | 'return' | 'payment';
+type LedgerEntryType = 'sale' | 'return' | 'payment' | 'adjustment';
 
 type LedgerRow = {
   id: string;
@@ -37,6 +38,7 @@ export function CustomerQuickViewPanel({ customer, onRefreshCustomerList }: Cust
   const [rows, setRows] = useState<LedgerRow[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showReceivePayment, setShowReceivePayment] = useState(false);
+  const [showAdvanceRefund, setShowAdvanceRefund] = useState(false);
 
   useEffect(() => {
     if (!customer?.id) {
@@ -84,6 +86,8 @@ export function CustomerQuickViewPanel({ customer, onRefreshCustomerList }: Cust
         return <Undo2 className="w-4 h-4" />;
       case 'payment':
         return <ArrowDownLeft className="w-4 h-4" />;
+      case 'adjustment':
+        return <Undo2 className="w-4 h-4" />;
     }
   };
 
@@ -95,6 +99,8 @@ export function CustomerQuickViewPanel({ customer, onRefreshCustomerList }: Cust
         return 'Return';
       case 'payment':
         return 'Payment';
+      case 'adjustment':
+        return 'Adjustment';
     }
   };
 
@@ -134,7 +140,7 @@ export function CustomerQuickViewPanel({ customer, onRefreshCustomerList }: Cust
           </div>
           <div className="flex flex-wrap gap-2 mt-2">
             <Badge variant="outline">Due: ₹{Number(customer.outstanding_balance || 0).toFixed(0)}</Badge>
-            <Badge variant="outline">Advance: ₹{Number((customer as any).advance_balance || 0).toFixed(0)}</Badge>
+            <Badge variant="outline">Advance: ₹{Number(customer.advance_balance || 0).toFixed(0)}</Badge>
           </div>
         </div>
 
@@ -142,11 +148,26 @@ export function CustomerQuickViewPanel({ customer, onRefreshCustomerList }: Cust
           <Button
             variant="outline"
             onClick={() => setShowReceivePayment(true)}
-            disabled={(customer as any).is_deleted}
-            title={(customer as any).is_deleted ? 'Customer is archived' : 'Receive payment'}
+            disabled={customer.is_deleted}
+            title={customer.is_deleted ? 'Customer is archived' : 'Receive payment'}
           >
             <Wallet className="w-4 h-4 mr-2" />
             Receive Payment
+          </Button>
+
+          <Button
+            variant="outline"
+            onClick={() => setShowAdvanceRefund(true)}
+            disabled={customer.is_deleted || Number(customer.advance_balance || 0) <= 0}
+            title={
+              customer.is_deleted
+                ? 'Customer is archived'
+                : Number(customer.advance_balance || 0) <= 0
+                  ? 'No advance to refund'
+                  : 'Refund advance'
+            }
+          >
+            Refund Advance
           </Button>
           <Button variant="outline" onClick={() => navigate(`/customers/${customer.id}/ledger`)}>
             <FileText className="w-4 h-4 mr-2" />
@@ -218,6 +239,13 @@ export function CustomerQuickViewPanel({ customer, onRefreshCustomerList }: Cust
       <CustomerPaymentDialog
         open={showReceivePayment}
         onClose={() => setShowReceivePayment(false)}
+        customer={customer}
+        onSuccess={handlePaymentSuccess}
+      />
+
+      <CustomerAdvanceRefundDialog
+        open={showAdvanceRefund}
+        onClose={() => setShowAdvanceRefund(false)}
         customer={customer}
         onSuccess={handlePaymentSuccess}
       />
