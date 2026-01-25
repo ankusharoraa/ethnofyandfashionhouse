@@ -263,8 +263,10 @@ export type Database = {
           invoice_number: string
           invoice_type: Database["public"]["Enums"]["invoice_type"]
           notes: string | null
+          parent_invoice_id: string | null
           payment_method: Database["public"]["Enums"]["payment_method"]
           pending_amount: number
+          returned_amount: number
           status: Database["public"]["Enums"]["invoice_status"]
           subtotal: number
           supplier_id: string | null
@@ -285,8 +287,10 @@ export type Database = {
           invoice_number: string
           invoice_type?: Database["public"]["Enums"]["invoice_type"]
           notes?: string | null
+          parent_invoice_id?: string | null
           payment_method?: Database["public"]["Enums"]["payment_method"]
           pending_amount?: number
+          returned_amount?: number
           status?: Database["public"]["Enums"]["invoice_status"]
           subtotal?: number
           supplier_id?: string | null
@@ -307,8 +311,10 @@ export type Database = {
           invoice_number?: string
           invoice_type?: Database["public"]["Enums"]["invoice_type"]
           notes?: string | null
+          parent_invoice_id?: string | null
           payment_method?: Database["public"]["Enums"]["payment_method"]
           pending_amount?: number
+          returned_amount?: number
           status?: Database["public"]["Enums"]["invoice_status"]
           subtotal?: number
           supplier_id?: string | null
@@ -323,6 +329,13 @@ export type Database = {
             columns: ["customer_id"]
             isOneToOne: false
             referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_parent_invoice_id_fkey"
+            columns: ["parent_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
             referencedColumns: ["id"]
           },
           {
@@ -689,6 +702,24 @@ export type Database = {
         Returns: Json
       }
       generate_invoice_number: { Args: never; Returns: string }
+      get_returnable_items: {
+        Args: { p_invoice_id: string }
+        Returns: {
+          line_total: number
+          original_length: number
+          original_quantity: number
+          price_type: Database["public"]["Enums"]["price_type"]
+          rate: number
+          returnable_length: number
+          returnable_quantity: number
+          returned_length: number
+          returned_quantity: number
+          sku_code: string
+          sku_id: string
+          sku_name: string
+          unit_price: number
+        }[]
+      }
       has_permission: {
         Args: {
           _permission: Database["public"]["Enums"]["permission_type"]
@@ -698,6 +729,14 @@ export type Database = {
       }
       is_authenticated_user: { Args: never; Returns: boolean }
       is_owner: { Args: never; Returns: boolean }
+      process_invoice_return: {
+        Args: {
+          p_notes?: string
+          p_parent_invoice_id: string
+          p_return_items: Json
+        }
+        Returns: Json
+      }
       record_customer_payment: {
         Args: {
           p_amount: number
@@ -719,7 +758,7 @@ export type Database = {
     }
     Enums: {
       invoice_status: "draft" | "completed" | "cancelled"
-      invoice_type: "sale" | "purchase"
+      invoice_type: "sale" | "purchase" | "return"
       payment_method: "cash" | "upi" | "card" | "credit"
       permission_type:
         | "sales_bill"
@@ -861,7 +900,7 @@ export const Constants = {
   public: {
     Enums: {
       invoice_status: ["draft", "completed", "cancelled"],
-      invoice_type: ["sale", "purchase"],
+      invoice_type: ["sale", "purchase", "return"],
       payment_method: ["cash", "upi", "card", "credit"],
       permission_type: [
         "sales_bill",

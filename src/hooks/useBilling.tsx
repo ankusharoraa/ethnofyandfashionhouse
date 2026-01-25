@@ -6,7 +6,7 @@ import type { SKU } from './useSKUs';
 
 export type InvoiceStatus = 'draft' | 'completed' | 'cancelled';
 export type PaymentMethod = 'cash' | 'upi' | 'card' | 'credit';
-export type InvoiceType = 'sale' | 'purchase';
+export type InvoiceType = 'sale' | 'purchase' | 'return';
 
 export interface InvoiceItem {
   id?: string;
@@ -34,12 +34,14 @@ export interface Invoice {
   customer_phone: string | null;
   supplier_id: string | null;
   supplier_name: string | null;
+  parent_invoice_id: string | null;
   subtotal: number;
   discount_amount: number;
   tax_amount: number;
   total_amount: number;
   amount_paid: number;
   pending_amount: number;
+  returned_amount: number;
   payment_method: PaymentMethod;
   status: InvoiceStatus;
   notes: string | null;
