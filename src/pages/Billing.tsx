@@ -64,7 +64,7 @@ export default function Billing() {
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [viewingInvoice, setViewingInvoice] = useState<Invoice | null>(null);
-  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  
   const totals = calculateTotals();
 
   // Filter invoices by type
@@ -93,7 +93,8 @@ export default function Billing() {
   const handleSalesPaymentConfirm = async (
     paymentMethod: PaymentMethod,
     customerName?: string,
-    customerPhone?: string
+    customerPhone?: string,
+    customerId?: string
   ) => {
     if (!hasPermission('sales_bill')) {
       toast({
@@ -106,7 +107,7 @@ export default function Billing() {
 
     setIsProcessing(true);
     try {
-      const result = await createAndCompleteBill(customerName, customerPhone, paymentMethod,paymentMethod === 'credit' ? 0 : totals.totalAmount);
+      const result = await createAndCompleteBill(customerName, customerPhone, paymentMethod, customerId);
       if (result) {
         setShowPayment(false);
         toast({
@@ -464,9 +465,7 @@ export default function Billing() {
       )}
 
       <PaymentDialog
-        customers={customers}             
-        selectedCustomer={selectedCustomer} 
-        onCustomerSelect={setSelectedCustomer}
+        customers={customers}
         open={showPayment}
         onClose={() => setShowPayment(false)}
         totalAmount={totals.totalAmount}
