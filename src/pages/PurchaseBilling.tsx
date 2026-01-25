@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { z } from 'zod';
 import {
   Plus,
   QrCode,
@@ -222,6 +223,53 @@ export default function PurchaseBilling() {
   };
 
   const handleRecordPurchaseClick = () => {
+    // Client-side validation (numeric fields are safe, but we still validate for data integrity)
+    const itemSchema = z.object({
+      price_type: z.enum(['fixed', 'per_metre']),
+      quantity: z.number().finite().nonnegative(),
+      length_metres: z.number().finite().nonnegative(),
+      unit_price: z.number().finite().nonnegative(),
+      rate: z.number().finite().nullable(),
+    });
+
+    const res = z
+      .array(itemSchema)
+      .min(1, { message: 'Add at least one item' })
+      .safeParse(cartItems);
+
+    if (!res.success) {
+      toast({
+        title: 'Invalid purchase',
+        description: res.error.issues[0]?.message || 'Please check your entries',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Require positive quantity/length and a positive cost
+    for (const item of cartItems) {
+      if (item.price_type === 'fixed') {
+        if ((item.quantity ?? 0) <= 0) {
+          toast({ title: 'Invalid quantity', description: 'Quantity must be at least 1', variant: 'destructive' });
+          return;
+        }
+        if ((item.unit_price ?? 0) <= 0) {
+          toast({ title: 'Invalid cost', description: 'Cost (₹/pc) must be greater than 0', variant: 'destructive' });
+          return;
+        }
+      } else {
+        if ((item.length_metres ?? 0) <= 0) {
+          toast({ title: 'Invalid length', description: 'Length must be greater than 0', variant: 'destructive' });
+          return;
+        }
+        const rate = item.rate ?? item.unit_price;
+        if ((rate ?? 0) <= 0) {
+          toast({ title: 'Invalid rate', description: 'Rate (₹/m) must be greater than 0', variant: 'destructive' });
+          return;
+        }
+      }
+    }
+
     if (!selectedSupplier) {
       setPendingPurchaseCheckout(true);
       setShowSupplierSearch(true);
