@@ -80,6 +80,8 @@ export default function PurchaseBilling() {
     base_name: string;
     color: string;
     price_type: 'fixed' | 'per_metre';
+    purchase_fixed_price?: number | null;
+    purchase_rate?: number | null;
     fixed_price?: number | null;
     rate?: number | null;
   }) => {
@@ -105,6 +107,8 @@ export default function PurchaseBilling() {
         price_type: draft.price_type,
         fixed_price: draft.price_type === 'fixed' ? (draft.fixed_price ?? 0) : null,
         rate: draft.price_type === 'per_metre' ? (draft.rate ?? 0) : null,
+        purchase_fixed_price: draft.price_type === 'fixed' ? (draft.purchase_fixed_price ?? 0) : null,
+        purchase_rate: draft.price_type === 'per_metre' ? (draft.purchase_rate ?? 0) : null,
         quantity: 0,
         length_metres: 0,
         low_stock_threshold: 5,
@@ -200,6 +204,16 @@ export default function PurchaseBilling() {
 
     if (sku) {
       addToCart(sku);
+      // Default purchase entry: cost from purchase_* and sell from selling price
+      setTimeout(() => {
+        const cost = sku.price_type === 'per_metre' ? (sku.purchase_rate ?? 0) : (sku.purchase_fixed_price ?? 0);
+        const sell = sku.price_type === 'per_metre' ? (sku.rate ?? 0) : (sku.fixed_price ?? 0);
+        if (sku.price_type === 'per_metre') {
+          updateCartItem(sku.id, { rate: cost, unit_price: cost, sell_price: sell });
+        } else {
+          updateCartItem(sku.id, { unit_price: cost, sell_price: sell });
+        }
+      }, 0);
       toast({ title: 'Added to Purchase', description: sku.name });
     } else {
       toast({
@@ -263,6 +277,7 @@ export default function PurchaseBilling() {
       length_metres: z.number().finite().nonnegative(),
       unit_price: z.number().finite().nonnegative(),
       rate: z.number().finite().nullable(),
+      sell_price: z.number().finite().nullable().optional(),
     });
 
     const res = z
@@ -279,7 +294,7 @@ export default function PurchaseBilling() {
       return;
     }
 
-    // Require positive quantity/length and a positive cost
+    // Require positive quantity/length, a positive cost, and a positive selling price
     for (const item of cartItems) {
       if (item.price_type === 'fixed') {
         if ((item.quantity ?? 0) <= 0) {
@@ -290,6 +305,10 @@ export default function PurchaseBilling() {
           toast({ title: 'Invalid cost', description: 'Cost (₹/pc) must be greater than 0', variant: 'destructive' });
           return;
         }
+        if (((item.sell_price ?? 0) as number) <= 0) {
+          toast({ title: 'Invalid selling price', description: 'Selling price (₹/pc) must be greater than 0', variant: 'destructive' });
+          return;
+        }
       } else {
         if ((item.length_metres ?? 0) <= 0) {
           toast({ title: 'Invalid length', description: 'Length must be greater than 0', variant: 'destructive' });
@@ -298,6 +317,10 @@ export default function PurchaseBilling() {
         const rate = item.rate ?? item.unit_price;
         if ((rate ?? 0) <= 0) {
           toast({ title: 'Invalid rate', description: 'Rate (₹/m) must be greater than 0', variant: 'destructive' });
+          return;
+        }
+        if (((item.sell_price ?? 0) as number) <= 0) {
+          toast({ title: 'Invalid selling price', description: 'Selling price (₹/m) must be greater than 0', variant: 'destructive' });
           return;
         }
       }
@@ -519,7 +542,18 @@ export default function PurchaseBilling() {
         open={showSearch}
         onClose={() => setShowSearch(false)}
         skus={skusForPicker}
-        onSelect={addToCart}
+        onSelect={(sku) => {
+          addToCart(sku);
+          setTimeout(() => {
+            const cost = sku.price_type === 'per_metre' ? (sku.purchase_rate ?? 0) : (sku.purchase_fixed_price ?? 0);
+            const sell = sku.price_type === 'per_metre' ? (sku.rate ?? 0) : (sku.fixed_price ?? 0);
+            if (sku.price_type === 'per_metre') {
+              updateCartItem(sku.id, { rate: cost, unit_price: cost, sell_price: sell });
+            } else {
+              updateCartItem(sku.id, { unit_price: cost, sell_price: sell });
+            }
+          }, 0);
+        }}
         onScanRequest={() => {
           setShowSearch(false);
           setShowScanner(true);

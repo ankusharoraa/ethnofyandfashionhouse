@@ -20,6 +20,9 @@ export interface InvoiceItem {
   length_metres: number;
   unit_price: number;
   line_total: number;
+  // Snapshot pricing for profit reporting
+  cost_price?: number | null;
+  sell_price?: number | null;
   // For UI purposes
   sku?: SKU;
   availableStock?: number;
@@ -122,17 +125,19 @@ export function useBilling() {
         
         if (sku.price_type === 'per_metre') {
           const newLength = (existing.length_metres || 0) + (lengthMetres || 1);
+          const pricePerMetre = existing.rate ?? existing.unit_price ?? 0;
           updated[existingIndex] = {
             ...existing,
             length_metres: newLength,
-            line_total: (sku.rate || 0) * newLength,
+            line_total: pricePerMetre * newLength,
           };
         } else {
           const newQty = (existing.quantity || 0) + (quantity || 1);
+          const pricePerUnit = existing.unit_price ?? 0;
           updated[existingIndex] = {
             ...existing,
             quantity: newQty,
-            line_total: (sku.fixed_price || 0) * newQty,
+            line_total: pricePerUnit * newQty,
           };
         }
         
@@ -141,6 +146,9 @@ export function useBilling() {
       
       // Add new item
       const unitPrice = sku.price_type === 'per_metre' ? (sku.rate || 0) : (sku.fixed_price || 0);
+      const snapshotCost = sku.price_type === 'per_metre'
+        ? (sku.purchase_rate ?? null)
+        : (sku.purchase_fixed_price ?? null);
       // Default to a sensible non-zero quantity/length so both sales + purchase flows work smoothly.
       const qty = quantity ?? (sku.price_type === 'fixed' ? 1 : 0);
       const len = lengthMetres ?? (sku.price_type === 'per_metre' ? 1 : 0);
@@ -155,6 +163,7 @@ export function useBilling() {
         length_metres: len,
         unit_price: unitPrice,
         line_total: sku.price_type === 'per_metre' ? unitPrice * len : unitPrice * qty,
+        cost_price: snapshotCost,
         sku,
         availableStock,
       };
@@ -272,6 +281,8 @@ export function useBilling() {
       length_metres: item.length_metres,
       unit_price: item.unit_price,
       line_total: item.line_total,
+      cost_price: item.cost_price ?? null,
+      sell_price: item.sell_price ?? null,
     }));
 
     const { error: itemsError } = await supabase
