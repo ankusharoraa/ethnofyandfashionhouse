@@ -9,7 +9,8 @@ import {
   FolderOpen,
   LogOut,
   User,
-  Receipt,
+  TrendingUp,
+  TrendingDown,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
@@ -27,7 +28,8 @@ import {
 const navItems = [
   { icon: Home, label: 'Dashboard', href: '/dashboard' },
   { icon: Package, label: 'Inventory', href: '/inventory' },
-  { icon: Receipt, label: 'Billing', href: '/billing' },
+  { icon: TrendingUp, label: 'Sales', href: '/sales' },
+  { icon: TrendingDown, label: 'Purchases', href: '/purchases' },
   { icon: User, label: 'Customers', href: '/customers' },
   { icon: User, label: 'Suppliers', href: '/suppliers' },
   { icon: QrCode, label: 'Scan', href: '/scan' },

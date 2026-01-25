@@ -2,13 +2,14 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { AuthProvider } from "./hooks/useAuth";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import Inventory from "./pages/Inventory";
 import Scan from "./pages/Scan";
-import Billing from "./pages/Billing";
+import SalesBilling from "./pages/SalesBilling";
+import PurchaseBilling from "./pages/PurchaseBilling";
 import Customers from "./pages/Customers";
 import CustomerLedger from "./pages/CustomerLedger";
 import Suppliers from "./pages/Suppliers";
@@ -17,6 +18,11 @@ import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
+
+const BillingRedirect = () => {
+  const location = useLocation();
+  return <Navigate to={`/sales${location.search}`} replace />;
+};
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -31,7 +37,10 @@ const App = () => (
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/inventory" element={<Inventory />} />
             <Route path="/scan" element={<Scan />} />
-            <Route path="/billing" element={<Billing />} />
+            {/* Backward compatible route for deep links */}
+            <Route path="/billing" element={<BillingRedirect />} />
+            <Route path="/sales" element={<SalesBilling />} />
+            <Route path="/purchases" element={<PurchaseBilling />} />
             <Route path="/customers" element={<Customers />} />
             <Route path="/customers/:customerId/ledger" element={<CustomerLedger />} />
             <Route path="/suppliers" element={<Suppliers />} />
