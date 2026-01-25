@@ -18,6 +18,8 @@ export interface SKU {
   price_type: 'per_metre' | 'fixed';
   rate: number | null;
   fixed_price: number | null;
+  purchase_rate?: number | null;
+  purchase_fixed_price?: number | null;
   quantity: number;
   length_metres: number;
   low_stock_threshold: number;
@@ -123,6 +125,8 @@ export function useSKUs() {
       price_type: sku.price_type || 'fixed',
       rate: sku.rate,
       fixed_price: sku.fixed_price,
+      purchase_rate: sku.purchase_rate ?? null,
+      purchase_fixed_price: sku.purchase_fixed_price ?? null,
       quantity: sku.quantity || 0,
       length_metres: sku.length_metres || 0,
       low_stock_threshold: sku.low_stock_threshold || 5,

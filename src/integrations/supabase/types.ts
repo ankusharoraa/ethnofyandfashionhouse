@@ -292,6 +292,7 @@ export type Database = {
       }
       invoice_items: {
         Row: {
+          cost_price: number | null
           created_at: string
           id: string
           invoice_id: string
@@ -300,12 +301,14 @@ export type Database = {
           price_type: Database["public"]["Enums"]["price_type"]
           quantity: number | null
           rate: number | null
+          sell_price: number | null
           sku_code: string
           sku_id: string
           sku_name: string
           unit_price: number
         }
         Insert: {
+          cost_price?: number | null
           created_at?: string
           id?: string
           invoice_id: string
@@ -314,12 +317,14 @@ export type Database = {
           price_type: Database["public"]["Enums"]["price_type"]
           quantity?: number | null
           rate?: number | null
+          sell_price?: number | null
           sku_code: string
           sku_id: string
           sku_name: string
           unit_price: number
         }
         Update: {
+          cost_price?: number | null
           created_at?: string
           id?: string
           invoice_id?: string
@@ -328,6 +333,7 @@ export type Database = {
           price_type?: Database["public"]["Enums"]["price_type"]
           quantity?: number | null
           rate?: number | null
+          sell_price?: number | null
           sku_code?: string
           sku_id?: string
           sku_name?: string
@@ -552,6 +558,8 @@ export type Database = {
           name_hindi: string | null
           parent_sku_id: string | null
           price_type: Database["public"]["Enums"]["price_type"]
+          purchase_fixed_price: number | null
+          purchase_rate: number | null
           quantity: number | null
           rate: number | null
           sku_code: string
@@ -577,6 +585,8 @@ export type Database = {
           name_hindi?: string | null
           parent_sku_id?: string | null
           price_type?: Database["public"]["Enums"]["price_type"]
+          purchase_fixed_price?: number | null
+          purchase_rate?: number | null
           quantity?: number | null
           rate?: number | null
           sku_code: string
@@ -602,6 +612,8 @@ export type Database = {
           name_hindi?: string | null
           parent_sku_id?: string | null
           price_type?: Database["public"]["Enums"]["price_type"]
+          purchase_fixed_price?: number | null
+          purchase_rate?: number | null
           quantity?: number | null
           rate?: number | null
           sku_code?: string

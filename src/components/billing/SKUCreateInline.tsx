@@ -11,6 +11,10 @@ export interface SKUCreateDraft {
   base_name: string;
   color: string;
   price_type: PriceTypeDraft;
+  // Cost (purchase)
+  purchase_fixed_price?: number | null;
+  purchase_rate?: number | null;
+  // Selling
   fixed_price?: number | null;
   rate?: number | null;
 }
@@ -28,8 +32,26 @@ export function SKUCreateInline({ enabled, searchValue, onCreate }: SKUCreateInl
   const [newBaseName, setNewBaseName] = useState('');
   const [newColor, setNewColor] = useState('');
   const [newPriceType, setNewPriceType] = useState<PriceTypeDraft>('fixed');
-  const [newFixedPrice, setNewFixedPrice] = useState('');
-  const [newRate, setNewRate] = useState('');
+  const [newCostFixed, setNewCostFixed] = useState('');
+  const [newCostRate, setNewCostRate] = useState('');
+  const [newSellFixed, setNewSellFixed] = useState('');
+  const [newSellRate, setNewSellRate] = useState('');
+  const [newMargin, setNewMargin] = useState('');
+
+  const parsedCost = useMemo(() => {
+    const raw = newPriceType === 'fixed' ? newCostFixed : newCostRate;
+    return Math.max(0, parseFloat(raw) || 0);
+  }, [newCostFixed, newCostRate, newPriceType]);
+
+  const parsedSell = useMemo(() => {
+    const raw = newPriceType === 'fixed' ? newSellFixed : newSellRate;
+    return Math.max(0, parseFloat(raw) || 0);
+  }, [newSellFixed, newSellRate, newPriceType]);
+
+  const derivedMargin = useMemo(() => {
+    if (parsedCost <= 0) return 0;
+    return ((parsedSell - parsedCost) / parsedCost) * 100;
+  }, [parsedCost, parsedSell]);
 
   const suggestedBaseName = useMemo(() => {
     const s = searchValue.trim();
@@ -47,12 +69,16 @@ export function SKUCreateInline({ enabled, searchValue, onCreate }: SKUCreateInl
     const color = newColor.trim();
     if (!base_name || !color) return;
 
+    if (parsedCost <= 0 || parsedSell <= 0) return;
+
     const draft: SKUCreateDraft = {
       base_name,
       color,
       price_type: newPriceType,
-      fixed_price: newPriceType === 'fixed' ? Math.max(0, parseFloat(newFixedPrice) || 0) : null,
-      rate: newPriceType === 'per_metre' ? Math.max(0, parseFloat(newRate) || 0) : null,
+      purchase_fixed_price: newPriceType === 'fixed' ? parsedCost : null,
+      purchase_rate: newPriceType === 'per_metre' ? parsedCost : null,
+      fixed_price: newPriceType === 'fixed' ? parsedSell : null,
+      rate: newPriceType === 'per_metre' ? parsedSell : null,
     };
 
     setIsCreating(true);
@@ -60,8 +86,11 @@ export function SKUCreateInline({ enabled, searchValue, onCreate }: SKUCreateInl
       await onCreate(draft);
       setNewBaseName('');
       setNewColor('');
-      setNewFixedPrice('');
-      setNewRate('');
+      setNewCostFixed('');
+      setNewCostRate('');
+      setNewSellFixed('');
+      setNewSellRate('');
+      setNewMargin('');
       setOpen(false);
     } finally {
       setIsCreating(false);
@@ -127,28 +156,77 @@ export function SKUCreateInline({ enabled, searchValue, onCreate }: SKUCreateInl
           </div>
 
           {newPriceType === 'fixed' ? (
-            <Input
-              type="number"
-              inputMode="decimal"
-              min={0}
-              step={0.01}
-              placeholder="Default cost (₹/pc)"
-              value={newFixedPrice}
-              onChange={(e) => setNewFixedPrice(e.target.value)}
-            />
+            <div className="grid grid-cols-2 gap-2">
+              <Input
+                type="number"
+                inputMode="decimal"
+                min={0}
+                step={0.01}
+                placeholder="Cost (₹/pc)"
+                value={newCostFixed}
+                onChange={(e) => setNewCostFixed(e.target.value)}
+              />
+              <Input
+                type="number"
+                inputMode="decimal"
+                min={0}
+                step={0.01}
+                placeholder="Selling (₹/pc)"
+                value={newSellFixed}
+                onChange={(e) => setNewSellFixed(e.target.value)}
+              />
+            </div>
           ) : (
-            <Input
-              type="number"
-              inputMode="decimal"
-              min={0}
-              step={0.01}
-              placeholder="Default rate (₹/m)"
-              value={newRate}
-              onChange={(e) => setNewRate(e.target.value)}
-            />
+            <div className="grid grid-cols-2 gap-2">
+              <Input
+                type="number"
+                inputMode="decimal"
+                min={0}
+                step={0.01}
+                placeholder="Cost (₹/m)"
+                value={newCostRate}
+                onChange={(e) => setNewCostRate(e.target.value)}
+              />
+              <Input
+                type="number"
+                inputMode="decimal"
+                min={0}
+                step={0.01}
+                placeholder="Selling (₹/m)"
+                value={newSellRate}
+                onChange={(e) => setNewSellRate(e.target.value)}
+              />
+            </div>
           )}
 
-          <Button type="button" className="w-full" onClick={handleCreate} disabled={isCreating}>
+          <div className="grid grid-cols-2 gap-2">
+            <Input
+              type="number"
+              inputMode="decimal"
+              step={0.01}
+              placeholder="Margin % (optional)"
+              value={newMargin}
+              onChange={(e) => {
+                const v = e.target.value;
+                setNewMargin(v);
+                const m = parseFloat(v);
+                if (!Number.isFinite(m)) return;
+                const sell = parsedCost > 0 ? parsedCost * (1 + m / 100) : 0;
+                if (newPriceType === 'fixed') setNewSellFixed(sell ? sell.toFixed(2) : '');
+                else setNewSellRate(sell ? sell.toFixed(2) : '');
+              }}
+            />
+            <div className="h-10 flex items-center justify-end text-sm text-muted-foreground">
+              {parsedCost > 0 && parsedSell > 0 ? `Live: ${derivedMargin.toFixed(2)}%` : 'Live: —'}
+            </div>
+          </div>
+
+          <Button
+            type="button"
+            className="w-full"
+            onClick={handleCreate}
+            disabled={isCreating || !newColor.trim() || !(newBaseName || suggestedBaseName).trim() || parsedCost <= 0 || parsedSell <= 0}
+          >
             {isCreating ? 'Creating…' : 'Create & Add to Purchase'}
           </Button>
         </CollapsibleContent>
