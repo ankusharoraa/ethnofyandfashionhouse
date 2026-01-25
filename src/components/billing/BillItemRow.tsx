@@ -17,6 +17,20 @@ export function BillItemRow({ item, onUpdate, onRemove, isPurchase = false }: Bi
   // For purchase, no stock limit; for sales, use available stock
   const maxValue = isPurchase ? 9999 : (item.availableStock || 999);
 
+  const effectiveUnitPrice = isPerMetre ? (item.rate ?? item.unit_price) : item.unit_price;
+
+  const handlePriceChange = (value: string) => {
+    const numValue = Math.max(0, parseFloat(value) || 0);
+    if (isPerMetre) {
+      // Keep both fields in sync so:
+      // - UI displays consistently
+      // - Purchase completion updates SKU rate (uses invoice_items.rate)
+      onUpdate(item.sku_id, { rate: numValue, unit_price: numValue });
+    } else {
+      onUpdate(item.sku_id, { unit_price: numValue });
+    }
+  };
+
   const handleIncrement = () => {
     if (currentValue >= maxValue) return;
     
@@ -67,12 +81,28 @@ export function BillItemRow({ item, onUpdate, onRemove, isPurchase = false }: Bi
           <p className="font-medium truncate">{item.sku_name}</p>
         </div>
         <p className="text-xs text-muted-foreground mt-0.5">
-          {item.sku_code} • ₹{item.unit_price.toFixed(2)}{isPerMetre ? '/m' : ''}
+          {item.sku_code} • ₹{effectiveUnitPrice.toFixed(2)}{isPerMetre ? '/m' : ''}
         </p>
         <p className="text-xs text-muted-foreground">
           {isPurchase ? 'Current stock' : 'Stock'}: {item.availableStock} {isPerMetre ? 'm' : 'pcs'}
         </p>
       </div>
+
+      {/* Purchase Cost */}
+      {isPurchase && (
+        <div className="hidden sm:block">
+          <p className="text-[10px] text-muted-foreground mb-1">{isPerMetre ? 'Rate (₹/m)' : 'Cost (₹/pc)'}</p>
+          <Input
+            type="number"
+            inputMode="decimal"
+            min={0}
+            step={0.01}
+            value={effectiveUnitPrice}
+            onChange={(e) => handlePriceChange(e.target.value)}
+            className="w-24 h-8"
+          />
+        </div>
+      )}
 
       {/* Quantity Controls */}
       <div className="flex items-center gap-2">
