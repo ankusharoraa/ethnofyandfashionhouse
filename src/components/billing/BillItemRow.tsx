@@ -219,7 +219,7 @@ export function BillItemRow({ item, onUpdate, onRemove, isPurchase = false }: Bi
           type="number"
           value={currentValue}
           onChange={(e) => handleValueChange(e.target.value)}
-          className="w-16 h-8 text-center"
+          className="w-24 sm:w-28 h-8 text-center tabular-nums"
           step={isPerMetre ? 0.5 : 1}
           min={isPerMetre ? 0.5 : 1}
           max={maxValue}
