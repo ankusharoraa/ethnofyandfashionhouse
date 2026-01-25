@@ -6,6 +6,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -69,15 +70,18 @@ export function SKUSearchDialog({
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="w-[calc(100vw-1.5rem)] sm:max-w-md max-h-[85vh] flex flex-col p-4 sm:p-6">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Search className="w-5 h-5 text-primary" />
             {mode === 'purchase' ? 'Add Purchased Item' : 'Add Item to Bill'}
           </DialogTitle>
+          <DialogDescription className="sr-only">
+            Search items by name, SKU, or barcode and add them to the current bill.
+          </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div className="space-y-4 flex-1 min-h-0 flex flex-col">
           {/* Search Input */}
           <div className="flex gap-2">
             <div className="relative flex-1">
@@ -99,8 +103,8 @@ export function SKUSearchDialog({
           <SKUCreateInline enabled={canCreate} searchValue={search} onCreate={handleCreate} />
 
           {/* Results */}
-          <ScrollArea className="h-[300px]">
-            <div className="space-y-2">
+          <ScrollArea className="flex-1 min-h-0">
+            <div className="space-y-2 pr-1">
               <AnimatePresence>
                 {filtered.length === 0 ? (
                   <div className="text-center py-8 text-muted-foreground">
