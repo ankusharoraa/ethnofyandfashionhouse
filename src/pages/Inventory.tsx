@@ -9,14 +9,18 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useSKUs, SKU } from '@/hooks/useSKUs';
 import { useAuth } from '@/hooks/useAuth';
+import { usePermissions } from '@/hooks/usePermissions';
 
 export default function Inventory() {
   const { isOwner } = useAuth();
+  const { hasPermission } = usePermissions();
   const { skus, categories, subcategories, isLoading, createSKU, updateSKU, updateStock, deleteSKU } = useSKUs();
   const [showForm, setShowForm] = useState(false);
   const [editingSKU, setEditingSKU] = useState<SKU | null>(null);
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
+
+  const canEditStock = hasPermission('stock_edit');
 
   const filtered = useMemo(() => {
     let result = skus;
@@ -92,6 +96,7 @@ export default function Inventory() {
         sku={editingSKU}
         categories={categories}
         subcategories={subcategories}
+        allowStockEdit={canEditStock}
       />
     </AppLayout>
   );
