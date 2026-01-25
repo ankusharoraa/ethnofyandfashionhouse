@@ -14,7 +14,7 @@ import { useAuth } from '@/hooks/useAuth';
 
 export default function Customers() {
   const { isOwner } = useAuth();
-  const { customers, isLoading, createCustomer, updateCustomer, deleteCustomer, fetchCustomers } = useCustomers();
+ const { customers, isLoading, createCustomer, updateCustomer, archiveCustomer, fetchCustomers } = useCustomers();
   const [showForm, setShowForm] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [paymentCustomer, setPaymentCustomer] = useState<Customer | null>(null);
@@ -32,11 +32,17 @@ export default function Customers() {
     );
   }, [customers, search]);
 
-  const handleDelete = async (customer: Customer) => {
-    if (confirm(`Delete customer "${customer.name}"? This cannot be undone.`)) {
-      await deleteCustomer(customer.id);
-    }
-  };
+ const handleArchive = async (customer: Customer) => {
+   if (
+     confirm(
+       `Archive customer "${customer.name}"?\n\n` +
+         `This will hide the customer from your list. ` +
+         `Note: Customers with outstanding dues, advance balance, or transaction history cannot be archived.`
+     )
+   ) {
+     await archiveCustomer(customer.id);
+   }
+ };
 
   const handlePaymentSuccess = () => {
     fetchCustomers(); // Refresh customer list to update balances
@@ -90,7 +96,7 @@ export default function Customers() {
                 key={customer.id}
                 customer={customer}
                 onEdit={setEditingCustomer}
-                onDelete={isOwner ? handleDelete : undefined}
+               onDelete={isOwner ? handleArchive : undefined}
                 onReceivePayment={setPaymentCustomer}
                 onViewLedger={setLedgerCustomer}
               />
