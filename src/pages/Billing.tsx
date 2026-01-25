@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ShoppingCart,
@@ -35,6 +36,7 @@ import { useSuppliers, type Supplier } from '@/hooks/useSuppliers';
 import { useToast } from '@/hooks/use-toast';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useCustomers, type Customer } from '@/hooks/useCustomers';
+import { supabase } from '@/integrations/supabase/client';
 
 export default function Billing() {
   const {
@@ -57,6 +59,8 @@ export default function Billing() {
   const { hasPermission } = usePermissions();
   const { toast } = useToast();
 
+  const [searchParams, setSearchParams] = useSearchParams();
+
   const [billType, setBillType] = useState<'sale' | 'purchase'>('sale');
   const [showSearch, setShowSearch] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
@@ -69,6 +73,43 @@ export default function Billing() {
   const [returningInvoice, setReturningInvoice] = useState<Invoice | null>(null);
   
   const totals = calculateTotals();
+
+  // Deep link support: /billing?invoiceId=XXX opens invoice details
+  useEffect(() => {
+    const invoiceId = searchParams.get('invoiceId');
+    if (!invoiceId) return;
+
+    let cancelled = false;
+
+    const openInvoice = async () => {
+      // Prefer already fetched invoice list
+      const existing = invoices.find((i) => i.id === invoiceId);
+      if (existing) {
+        if (!cancelled) setViewingInvoice(existing);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('invoices')
+        .select('*, invoice_items(*)')
+        .eq('id', invoiceId)
+        .maybeSingle();
+
+      if (error) {
+        console.error('Failed to load invoice deep link:', error);
+        return;
+      }
+      if (!data) return;
+
+      if (!cancelled) setViewingInvoice(data as Invoice);
+    };
+
+    void openInvoice();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [searchParams, invoices]);
 
   // Filter invoices by type
   const salesInvoices = invoices.filter((i) => i.invoice_type === 'sale');
@@ -518,7 +559,12 @@ export default function Billing() {
 
       <InvoiceViewDialog
         open={!!viewingInvoice}
-        onClose={() => setViewingInvoice(null)}
+        onClose={() => {
+          setViewingInvoice(null);
+          const next = new URLSearchParams(searchParams);
+          next.delete('invoiceId');
+          setSearchParams(next, { replace: true });
+        }}
         invoice={viewingInvoice}
       />
 

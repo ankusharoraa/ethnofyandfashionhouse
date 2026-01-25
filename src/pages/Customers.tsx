@@ -1,11 +1,11 @@
 import { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, Plus, Users } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { CustomerCard } from '@/components/customers/CustomerCard';
 import { CustomerForm } from '@/components/customers/CustomerForm';
 import { CustomerPaymentDialog } from '@/components/customers/CustomerPaymentDialog';
-import { CustomerLedgerDialog } from '@/components/customers/CustomerLedgerDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
@@ -14,11 +14,11 @@ import { useAuth } from '@/hooks/useAuth';
 
 export default function Customers() {
   const { isOwner } = useAuth();
+  const navigate = useNavigate();
  const { customers, isLoading, createCustomer, updateCustomer, archiveCustomer, fetchCustomers } = useCustomers();
   const [showForm, setShowForm] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [paymentCustomer, setPaymentCustomer] = useState<Customer | null>(null);
-  const [ledgerCustomer, setLedgerCustomer] = useState<Customer | null>(null);
   const [search, setSearch] = useState('');
 
   const filtered = useMemo(() => {
@@ -46,6 +46,10 @@ export default function Customers() {
 
   const handlePaymentSuccess = () => {
     fetchCustomers(); // Refresh customer list to update balances
+  };
+
+  const handleViewLedger = (customer: Customer) => {
+    navigate(`/customers/${customer.id}/ledger`);
   };
 
   return (
@@ -98,7 +102,7 @@ export default function Customers() {
                 onEdit={setEditingCustomer}
                onDelete={isOwner ? handleArchive : undefined}
                 onReceivePayment={setPaymentCustomer}
-                onViewLedger={setLedgerCustomer}
+                onViewLedger={handleViewLedger}
               />
             ))}
           </AnimatePresence>
@@ -130,14 +134,6 @@ export default function Customers() {
         />
       )}
 
-      {/* Ledger Dialog */}
-      {ledgerCustomer && (
-        <CustomerLedgerDialog
-          open={!!ledgerCustomer}
-          onClose={() => setLedgerCustomer(null)}
-          customer={ledgerCustomer}
-        />
-      )}
     </AppLayout>
   );
 }
