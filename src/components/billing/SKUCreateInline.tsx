@@ -8,7 +8,8 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 type PriceTypeDraft = 'fixed' | 'per_metre';
 
 export interface SKUCreateDraft {
-  name: string;
+  base_name: string;
+  color: string;
   price_type: PriceTypeDraft;
   fixed_price?: number | null;
   rate?: number | null;
@@ -24,12 +25,13 @@ export function SKUCreateInline({ enabled, searchValue, onCreate }: SKUCreateInl
   const [open, setOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
 
-  const [newName, setNewName] = useState('');
+  const [newBaseName, setNewBaseName] = useState('');
+  const [newColor, setNewColor] = useState('');
   const [newPriceType, setNewPriceType] = useState<PriceTypeDraft>('fixed');
   const [newFixedPrice, setNewFixedPrice] = useState('');
   const [newRate, setNewRate] = useState('');
 
-  const suggestedName = useMemo(() => {
+  const suggestedBaseName = useMemo(() => {
     const s = searchValue.trim();
     if (!s) return '';
     // avoid filling in barcodes/SKU codes as a name
@@ -41,11 +43,13 @@ export function SKUCreateInline({ enabled, searchValue, onCreate }: SKUCreateInl
   const handleCreate = async () => {
     if (!enabled) return;
 
-    const name = (newName || suggestedName).trim();
-    if (!name) return;
+    const base_name = (newBaseName || suggestedBaseName).trim();
+    const color = newColor.trim();
+    if (!base_name || !color) return;
 
     const draft: SKUCreateDraft = {
-      name,
+      base_name,
+      color,
       price_type: newPriceType,
       fixed_price: newPriceType === 'fixed' ? Math.max(0, parseFloat(newFixedPrice) || 0) : null,
       rate: newPriceType === 'per_metre' ? Math.max(0, parseFloat(newRate) || 0) : null,
@@ -54,7 +58,8 @@ export function SKUCreateInline({ enabled, searchValue, onCreate }: SKUCreateInl
     setIsCreating(true);
     try {
       await onCreate(draft);
-      setNewName('');
+      setNewBaseName('');
+      setNewColor('');
       setNewFixedPrice('');
       setNewRate('');
       setOpen(false);
@@ -74,7 +79,7 @@ export function SKUCreateInline({ enabled, searchValue, onCreate }: SKUCreateInl
             <div className="min-w-0">
               <div className="text-sm font-medium">Add new SKU</div>
               <div className="text-xs text-muted-foreground truncate">
-                New items get an auto-generated SKU code + barcode
+              Creates a product + a color variant (barcode is generated)
               </div>
             </div>
           </div>
@@ -89,10 +94,16 @@ export function SKUCreateInline({ enabled, searchValue, onCreate }: SKUCreateInl
 
         <CollapsibleContent className="mt-3 space-y-2">
           <Input
-            placeholder={suggestedName ? `SKU name (e.g. ${suggestedName})` : 'SKU name'}
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
+              placeholder={suggestedBaseName ? `Design name (e.g. ${suggestedBaseName})` : 'Design name'}
+              value={newBaseName}
+              onChange={(e) => setNewBaseName(e.target.value)}
           />
+
+            <Input
+              placeholder="Color (e.g. Maroon)"
+              value={newColor}
+              onChange={(e) => setNewColor(e.target.value)}
+            />
 
           <div className="flex gap-2">
             <Button

@@ -23,7 +23,8 @@ interface SKUSearchDialogProps {
   onScanRequest: () => void;
   mode?: 'sale' | 'purchase';
   onCreateSku?: (draft: {
-    name: string;
+    base_name: string;
+    color: string;
     price_type: 'fixed' | 'per_metre';
     fixed_price?: number | null;
     rate?: number | null;

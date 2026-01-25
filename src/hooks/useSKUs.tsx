@@ -8,6 +8,9 @@ export interface SKU {
   sku_code: string;
   barcode: string | null;
   name: string;
+  parent_sku_id?: string | null;
+  color?: string | null;
+  base_name?: string | null;
   name_hindi: string | null;
   description: string | null;
   category_id: string | null;
@@ -110,6 +113,9 @@ export function useSKUs() {
       sku_code: sku.sku_code!,
       name: sku.name!,
       barcode: sku.barcode,
+      parent_sku_id: sku.parent_sku_id ?? null,
+      color: sku.color ?? null,
+      base_name: sku.base_name ?? null,
       name_hindi: sku.name_hindi,
       description: sku.description,
       category_id: sku.category_id,
@@ -264,6 +270,9 @@ export function useSKUs() {
     });
   };
 
+  const variantSkus = skus.filter((s) => !!s.parent_sku_id);
+  const baseSkus = skus.filter((s) => !s.parent_sku_id);
+
   useEffect(() => {
     if (user) {
       fetchCategories();
@@ -274,6 +283,8 @@ export function useSKUs() {
 
   return {
     skus,
+    variantSkus,
+    baseSkus,
     categories,
     subcategories,
     isLoading,

@@ -14,7 +14,7 @@ import { usePermissions } from '@/hooks/usePermissions';
 export default function Inventory() {
   const { isOwner } = useAuth();
   const { hasPermission } = usePermissions();
-  const { skus, categories, subcategories, isLoading, createSKU, updateSKU, updateStock, deleteSKU } = useSKUs();
+  const { variantSkus, categories, subcategories, isLoading, createSKU, updateSKU, updateStock, deleteSKU } = useSKUs();
   const [showForm, setShowForm] = useState(false);
   const [editingSKU, setEditingSKU] = useState<SKU | null>(null);
   const [search, setSearch] = useState('');
@@ -23,7 +23,7 @@ export default function Inventory() {
   const canEditStock = hasPermission('stock_edit');
 
   const filtered = useMemo(() => {
-    let result = skus;
+    let result = variantSkus;
     if (search) {
       const q = search.toLowerCase();
       result = result.filter(s => s.name.toLowerCase().includes(q) || s.sku_code.toLowerCase().includes(q));
@@ -32,7 +32,7 @@ export default function Inventory() {
       result = result.filter(s => s.category_id === categoryFilter);
     }
     return result;
-  }, [skus, search, categoryFilter]);
+  }, [variantSkus, search, categoryFilter]);
 
   return (
     <AppLayout>
@@ -73,26 +73,82 @@ export default function Inventory() {
           setShowForm(false);
           setEditingSKU(null);
         }}
-        onSubmit={
-          editingSKU
-            ? async (d) => {
-                // Enforce traceability: if stock is changed manually from this form,
-                // record an inventory log entry via updateStock.
-                const nextQty = typeof d.quantity === 'number' ? d.quantity : editingSKU.quantity;
-                const nextLen = typeof d.length_metres === 'number' ? d.length_metres : editingSKU.length_metres;
+        onSubmit={async (d) => {
+          // Form now sends base_name + color for variants.
+          const baseName = (d as any).base_name?.toString().trim();
+          const color = (d as any).color?.toString().trim();
 
-                const stockChanged = nextQty !== editingSKU.quantity || nextLen !== editingSKU.length_metres;
+          if (!baseName || !color) return null;
 
-                if (stockChanged) {
-                  await updateStock(editingSKU.id, nextQty, nextLen, 'Manual adjustment via SKU edit');
-                }
+          if (editingSKU) {
+            // Stock updates must be traceable
+            const nextQty = typeof d.quantity === 'number' ? d.quantity : editingSKU.quantity;
+            const nextLen = typeof d.length_metres === 'number' ? d.length_metres : editingSKU.length_metres;
+            const stockChanged = nextQty !== editingSKU.quantity || nextLen !== editingSKU.length_metres;
+            if (stockChanged) {
+              await updateStock(editingSKU.id, nextQty, nextLen, 'Manual adjustment via SKU edit');
+            }
 
-                // Update other fields without touching stock.
-                const { quantity, length_metres, ...rest } = d as any;
-                return updateSKU(editingSKU.id, rest);
-              }
-            : createSKU
-        }
+            // Update shared fields on base product (price/name/category/etc)
+            if (editingSKU.parent_sku_id) {
+              const { quantity, length_metres, sku_code, barcode, color: _c, base_name: _b, ...rest } = d as any;
+              await updateSKU(editingSKU.parent_sku_id, {
+                name: baseName,
+                category_id: rest.category_id ?? null,
+                subcategory_id: rest.subcategory_id ?? null,
+                description: rest.description ?? null,
+                price_type: rest.price_type,
+                fixed_price: rest.price_type === 'fixed' ? rest.fixed_price : null,
+                rate: rest.price_type === 'per_metre' ? rest.rate : null,
+                low_stock_threshold: rest.low_stock_threshold,
+                image_url: rest.image_url ?? null,
+              });
+            }
+
+            // Update variant-specific fields
+            const { quantity, length_metres, price_type, fixed_price, rate, category_id, subcategory_id, description, low_stock_threshold, ...variantRest } = d as any;
+            return updateSKU(editingSKU.id, {
+              sku_code: variantRest.sku_code,
+              barcode: variantRest.barcode ?? null,
+              color,
+              base_name: baseName,
+              name_hindi: variantRest.name_hindi ?? null,
+              image_url: variantRest.image_url ?? null,
+            });
+          }
+
+          // Create base product + first variant
+          const base = await createSKU({
+            sku_code: `BASE-${Math.random().toString(36).slice(2, 8).toUpperCase()}`,
+            barcode: null,
+            name: baseName,
+            category_id: (d as any).category_id ?? null,
+            subcategory_id: (d as any).subcategory_id ?? null,
+            description: (d as any).description ?? null,
+            price_type: (d as any).price_type,
+            fixed_price: (d as any).price_type === 'fixed' ? (d as any).fixed_price : null,
+            rate: (d as any).price_type === 'per_metre' ? (d as any).rate : null,
+            quantity: 0,
+            length_metres: 0,
+            low_stock_threshold: (d as any).low_stock_threshold ?? 5,
+            image_url: (d as any).image_url ?? null,
+          });
+          if (!base) return null;
+
+          return createSKU({
+            sku_code: (d as any).sku_code,
+            barcode: (d as any).barcode ?? null,
+            name: baseName,
+            parent_sku_id: base.id,
+            base_name: baseName,
+            color,
+            name_hindi: (d as any).name_hindi ?? null,
+            quantity: 0,
+            length_metres: 0,
+            low_stock_threshold: (d as any).low_stock_threshold ?? 5,
+            image_url: (d as any).image_url ?? null,
+          });
+        }}
         sku={editingSKU}
         categories={categories}
         subcategories={subcategories}

@@ -537,7 +537,9 @@ export type Database = {
       skus: {
         Row: {
           barcode: string | null
+          base_name: string | null
           category_id: string | null
+          color: string | null
           created_at: string
           created_by: string | null
           description: string | null
@@ -548,6 +550,7 @@ export type Database = {
           low_stock_threshold: number | null
           name: string
           name_hindi: string | null
+          parent_sku_id: string | null
           price_type: Database["public"]["Enums"]["price_type"]
           quantity: number | null
           rate: number | null
@@ -559,7 +562,9 @@ export type Database = {
         }
         Insert: {
           barcode?: string | null
+          base_name?: string | null
           category_id?: string | null
+          color?: string | null
           created_at?: string
           created_by?: string | null
           description?: string | null
@@ -570,6 +575,7 @@ export type Database = {
           low_stock_threshold?: number | null
           name: string
           name_hindi?: string | null
+          parent_sku_id?: string | null
           price_type?: Database["public"]["Enums"]["price_type"]
           quantity?: number | null
           rate?: number | null
@@ -581,7 +587,9 @@ export type Database = {
         }
         Update: {
           barcode?: string | null
+          base_name?: string | null
           category_id?: string | null
+          color?: string | null
           created_at?: string
           created_by?: string | null
           description?: string | null
@@ -592,6 +600,7 @@ export type Database = {
           low_stock_threshold?: number | null
           name?: string
           name_hindi?: string | null
+          parent_sku_id?: string | null
           price_type?: Database["public"]["Enums"]["price_type"]
           quantity?: number | null
           rate?: number | null
@@ -607,6 +616,13 @@ export type Database = {
             columns: ["category_id"]
             isOneToOne: false
             referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "skus_parent_sku_id_fkey"
+            columns: ["parent_sku_id"]
+            isOneToOne: false
+            referencedRelation: "skus"
             referencedColumns: ["id"]
           },
           {
@@ -906,6 +922,7 @@ export type Database = {
       }
       generate_invoice_number: { Args: never; Returns: string }
       generate_unique_barcode: { Args: { p_prefix?: string }; Returns: string }
+      generate_unique_sku_code: { Args: { p_prefix?: string }; Returns: string }
       get_customer_running_balance: {
         Args: { p_customer_id: string }
         Returns: number
