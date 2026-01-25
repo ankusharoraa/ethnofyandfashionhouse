@@ -44,6 +44,53 @@ export type Database = {
         }
         Relationships: []
       }
+      customer_ledger: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          credit_amount: number
+          customer_id: string
+          debit_amount: number
+          entry_type: Database["public"]["Enums"]["ledger_entry_type"]
+          id: string
+          reference_id: string | null
+          reference_label: string | null
+          running_balance: number
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          credit_amount?: number
+          customer_id: string
+          debit_amount?: number
+          entry_type: Database["public"]["Enums"]["ledger_entry_type"]
+          id?: string
+          reference_id?: string | null
+          reference_label?: string | null
+          running_balance?: number
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          credit_amount?: number
+          customer_id?: string
+          debit_amount?: number
+          entry_type?: Database["public"]["Enums"]["ledger_entry_type"]
+          id?: string
+          reference_id?: string | null
+          reference_label?: string | null
+          running_balance?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_ledger_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       customer_payments: {
         Row: {
           amount: number
@@ -102,8 +149,11 @@ export type Database = {
           city: string | null
           created_at: string
           created_by: string | null
+          deleted_at: string | null
+          deleted_by: string | null
           email: string | null
           id: string
+          is_deleted: boolean
           name: string
           name_hindi: string | null
           notes: string | null
@@ -118,8 +168,11 @@ export type Database = {
           city?: string | null
           created_at?: string
           created_by?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
           email?: string | null
           id?: string
+          is_deleted?: boolean
           name: string
           name_hindi?: string | null
           notes?: string | null
@@ -134,8 +187,11 @@ export type Database = {
           city?: string | null
           created_at?: string
           created_by?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
           email?: string | null
           id?: string
+          is_deleted?: boolean
           name?: string
           name_hindi?: string | null
           notes?: string | null
@@ -701,6 +757,22 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      append_customer_ledger: {
+        Args: {
+          p_created_at?: string
+          p_credit: number
+          p_customer_id: string
+          p_debit: number
+          p_entry_type: Database["public"]["Enums"]["ledger_entry_type"]
+          p_reference_id: string
+          p_reference_label: string
+        }
+        Returns: string
+      }
+      assert_customer_active: {
+        Args: { p_customer_id: string }
+        Returns: undefined
+      }
       cancel_invoice: { Args: { p_invoice_id: string }; Returns: Json }
       cancel_purchase_invoice: { Args: { p_invoice_id: string }; Returns: Json }
       complete_invoice:
@@ -733,6 +805,10 @@ export type Database = {
         Returns: Json
       }
       generate_invoice_number: { Args: never; Returns: string }
+      get_customer_running_balance: {
+        Args: { p_customer_id: string }
+        Returns: number
+      }
       get_returnable_items: {
         Args: { p_invoice_id: string }
         Returns: {
@@ -793,11 +869,13 @@ export type Database = {
         }
         Returns: Json
       }
+      soft_delete_customer: { Args: { p_customer_id: string }; Returns: Json }
     }
     Enums: {
       app_role: "owner" | "staff"
       invoice_status: "draft" | "completed" | "cancelled"
       invoice_type: "sale" | "purchase" | "return"
+      ledger_entry_type: "sale" | "payment" | "return" | "adjustment"
       payment_method: "cash" | "upi" | "card" | "credit"
       permission_type:
         | "sales_bill"
@@ -941,6 +1019,7 @@ export const Constants = {
       app_role: ["owner", "staff"],
       invoice_status: ["draft", "completed", "cancelled"],
       invoice_type: ["sale", "purchase", "return"],
+      ledger_entry_type: ["sale", "payment", "return", "adjustment"],
       payment_method: ["cash", "upi", "card", "credit"],
       permission_type: [
         "sales_bill",
