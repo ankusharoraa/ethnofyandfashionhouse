@@ -7,7 +7,8 @@ interface Profile {
   user_id: string;
   full_name: string | null;
   phone: string | null;
-  role: 'owner' | 'staff';
+  // NOTE: role is authoritative in `user_roles` table; this field is only for UI convenience.
+  role?: 'owner' | 'staff';
   created_at: string;
   updated_at: string;
 }
@@ -31,6 +32,52 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isOwner, setIsOwner] = useState(false);
+
+  const fetchIsOwner = async (userId: string) => {
+    try {
+      const { data, error } = await supabase.rpc('has_role', {
+        _user_id: userId,
+        _role: 'owner',
+      });
+
+      if (error) {
+        console.error('Error checking role:', error);
+        return false;
+      }
+
+      return Boolean(data);
+    } catch (error) {
+      console.error('Error in fetchIsOwner:', error);
+      return false;
+    }
+  };
+
+  const ensureBootstrap = async (authUser: User) => {
+    // Create profile if missing + assign first-ever user as owner (server-side)
+    try {
+      const fullName =
+        (authUser.user_metadata as { full_name?: string } | undefined)?.full_name ??
+        authUser.email ??
+        null;
+
+      const { data, error } = await supabase.rpc('ensure_user_bootstrap', {
+        p_user_id: authUser.id,
+        p_full_name: fullName,
+      });
+
+      if (error) {
+        console.error('Error bootstrapping user:', error);
+        return;
+      }
+
+      if (data && typeof data === 'object' && 'success' in data && (data as any).success !== true) {
+        console.error('Bootstrap returned error:', data);
+      }
+    } catch (error) {
+      console.error('Error in ensureBootstrap:', error);
+    }
+  };
 
   const fetchProfile = async (userId: string) => {
     try {
@@ -38,7 +85,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .from('profiles')
         .select('*')
         .eq('user_id', userId)
-        .single();
+        .maybeSingle();
 
       if (error) {
         console.error('Error fetching profile:', error);
@@ -54,42 +101,52 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const refreshProfile = async () => {
     if (user) {
-      const profileData = await fetchProfile(user.id);
-      setProfile(profileData);
+      await ensureBootstrap(user);
+      const [profileData, owner] = await Promise.all([
+        fetchProfile(user.id),
+        fetchIsOwner(user.id),
+      ]);
+      setIsOwner(owner);
+      setProfile(profileData ? { ...profileData, role: owner ? 'owner' : 'staff' } : null);
     }
+  };
+
+  const hydrateUser = async (currentSession: Session | null) => {
+    setSession(currentSession);
+    const authUser = currentSession?.user ?? null;
+    setUser(authUser);
+
+    if (!authUser) {
+      setProfile(null);
+      setIsOwner(false);
+      setIsLoading(false);
+      return;
+    }
+
+    await ensureBootstrap(authUser);
+    const [profileData, owner] = await Promise.all([
+      fetchProfile(authUser.id),
+      fetchIsOwner(authUser.id),
+    ]);
+    setIsOwner(owner);
+    setProfile(profileData ? { ...profileData, role: owner ? 'owner' : 'staff' } : null);
+    setIsLoading(false);
   };
 
   useEffect(() => {
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, currentSession) => {
-        setSession(currentSession);
-        setUser(currentSession?.user ?? null);
-
-        // Defer profile fetch with setTimeout to prevent deadlock
-        if (currentSession?.user) {
-          setTimeout(() => {
-            fetchProfile(currentSession.user.id).then(setProfile);
-          }, 0);
-        } else {
-          setProfile(null);
-        }
+        // Defer any Supabase calls with setTimeout to prevent deadlock
+        setTimeout(() => {
+          hydrateUser(currentSession);
+        }, 0);
       }
     );
 
     // THEN check for existing session
     supabase.auth.getSession().then(({ data: { session: existingSession } }) => {
-      setSession(existingSession);
-      setUser(existingSession?.user ?? null);
-
-      if (existingSession?.user) {
-        fetchProfile(existingSession.user.id).then((profileData) => {
-          setProfile(profileData);
-          setIsLoading(false);
-        });
-      } else {
-        setIsLoading(false);
-      }
+      hydrateUser(existingSession);
     });
 
     return () => subscription.unsubscribe();
@@ -126,6 +183,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
     setSession(null);
     setProfile(null);
+    setIsOwner(false);
   };
 
   const value = {
@@ -133,7 +191,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     session,
     profile,
     isLoading,
-    isOwner: profile?.role === 'owner',
+    isOwner,
     signUp,
     signIn,
     signOut,
