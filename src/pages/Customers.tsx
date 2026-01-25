@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, Plus, Users } from 'lucide-react';
@@ -22,6 +22,19 @@ export default function Customers() {
   const [paymentCustomer, setPaymentCustomer] = useState<Customer | null>(null);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [search, setSearch] = useState('');
+
+  // Keep the split-screen quick view in sync with the latest customer list (balances, archived status, etc.)
+  useEffect(() => {
+    if (!selectedCustomer) return;
+    const latest = customers.find((c) => c.id === selectedCustomer.id);
+    if (!latest) {
+      setSelectedCustomer(null);
+      return;
+    }
+
+    // Avoid needless re-renders but ensure updated balances/status flow through
+    if (latest !== selectedCustomer) setSelectedCustomer(latest);
+  }, [customers, selectedCustomer]);
 
   const filtered = useMemo(() => {
     if (!search) return customers;
