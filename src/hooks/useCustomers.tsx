@@ -31,6 +31,7 @@ export function useCustomers() {
       const { data, error } = await supabase
         .from('customers')
         .select('*')
+       .eq('is_deleted', false)
         .order('name');
 
       if (error) {
@@ -171,6 +172,39 @@ export function useCustomers() {
     return updateCustomer(id, updates);
   };
 
+ const archiveCustomer = async (id: string) => {
+   const { data, error } = await supabase.rpc('soft_delete_customer', {
+     p_customer_id: id,
+   }) as { data: { success: boolean; error?: string } | null; error: any };
+
+   if (error) {
+     console.error('Error archiving customer:', error);
+     toast({
+       title: 'Error',
+       description: error.message || 'Failed to archive customer',
+       variant: 'destructive',
+     });
+     return false;
+   }
+
+   if (!data || !data.success) {
+     toast({
+       title: 'Cannot Archive',
+       description: data?.error || 'Customer cannot be archived',
+       variant: 'destructive',
+     });
+     return false;
+   }
+
+   // Refresh the list to hide the archived customer
+   await fetchCustomers();
+   toast({
+     title: 'Archived',
+     description: 'Customer archived successfully',
+   });
+   return true;
+ };
+
   useEffect(() => {
     if (user) {
       fetchCustomers();
@@ -184,6 +218,7 @@ export function useCustomers() {
     createCustomer,
     updateCustomer,
     deleteCustomer,
+   archiveCustomer,
     findByPhone,
     searchCustomers,
     updateBalance,
