@@ -48,7 +48,7 @@ export default function PurchaseBilling() {
     createAndCompletePurchaseBill,
     cancelPurchaseInvoice,
   } = useBilling();
-  const { skus, findByBarcode, createSKU } = useSKUs();
+  const { skus, findByBarcode, createSKU, fetchSKUs } = useSKUs();
   const { suppliers } = useSuppliers();
   const { hasPermission } = usePermissions();
   const { toast } = useToast();
@@ -206,6 +206,8 @@ export default function PurchaseBilling() {
         setShowPurchasePayment(false);
         setSelectedSupplier(null);
         clearCart();
+        // Reflect stock-in immediately in the inventory UI
+        void fetchSKUs();
         toast({
           title: '✅ Purchase Recorded!',
           description: `Invoice ${result.invoice_number} - ₹${totals.totalAmount.toFixed(2)}`,
