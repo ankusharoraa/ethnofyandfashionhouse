@@ -548,10 +548,13 @@ export type Database = {
           color: string | null
           created_at: string
           created_by: string | null
+          deleted_at: string | null
+          deleted_by: string | null
           description: string | null
           fixed_price: number | null
           id: string
           image_url: string | null
+          is_deleted: boolean
           length_metres: number | null
           low_stock_threshold: number | null
           name: string
@@ -575,10 +578,13 @@ export type Database = {
           color?: string | null
           created_at?: string
           created_by?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
           description?: string | null
           fixed_price?: number | null
           id?: string
           image_url?: string | null
+          is_deleted?: boolean
           length_metres?: number | null
           low_stock_threshold?: number | null
           name: string
@@ -602,10 +608,13 @@ export type Database = {
           color?: string | null
           created_at?: string
           created_by?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
           description?: string | null
           fixed_price?: number | null
           id?: string
           image_url?: string | null
+          is_deleted?: boolean
           length_metres?: number | null
           low_stock_threshold?: number | null
           name?: string
@@ -1013,6 +1022,7 @@ export type Database = {
         Returns: Json
       }
       soft_delete_customer: { Args: { p_customer_id: string }; Returns: Json }
+      soft_delete_sku: { Args: { p_sku_id: string }; Returns: Json }
     }
     Enums: {
       app_role: "owner" | "staff"

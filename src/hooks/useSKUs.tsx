@@ -27,6 +27,9 @@ export interface SKU {
   sync_status: 'synced' | 'pending' | 'offline';
   created_at: string;
   updated_at: string;
+  is_deleted?: boolean;
+  deleted_at?: string | null;
+  deleted_by?: string | null;
   categories?: { name: string; name_hindi: string | null } | null;
   subcategories?: { name: string; name_hindi: string | null } | null;
 }
@@ -196,13 +199,24 @@ export function useSKUs() {
   };
 
   const deleteSKU = async (id: string) => {
-    const { error } = await supabase.from('skus').delete().eq('id', id);
+    const { data, error } = await supabase
+      .rpc('soft_delete_sku', { p_sku_id: id });
 
     if (error) {
       console.error('Error deleting SKU:', error);
       toast({
         title: 'Error',
         description: error.message || 'Failed to delete SKU',
+        variant: 'destructive',
+      });
+      return false;
+    }
+
+    const result = data as { success: boolean; error?: string };
+    if (result && !result.success) {
+      toast({
+        title: 'Error',
+        description: result.error || 'Failed to delete SKU',
         variant: 'destructive',
       });
       return false;
