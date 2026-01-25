@@ -1,145 +1,166 @@
 
 Goal
-- Add proper “same design, multiple colours” support using the approved approach: Parent (Base Product) + Variants (Color), with shared pricing and barcode per color, and color visible in both Inventory and Billing.
-- Additionally, ensure the workflow aligns with “barcode should have all details” (i.e., scanning uniquely identifies the exact color variant so staff doesn’t need to manually pick color during billing).
+- In Purchase flow, require two separate prices:
+  1) Purchase/Cost price (what you paid)
+  2) Selling price (what you sell for)
+- Show profit/margin instantly while entering these values (percent + optional reverse calculation).
+- Use these values to generate daily profit reports.
 
-What we already know (approved)
-- Tracking method: Parent + variants
-- Pricing: Shared price across colors (parent holds price; variants inherit)
-- Barcode: One barcode per color (variant)
-- UX: Color selection available in both Inventory and Billing
-- Display: “Name (Color)” everywhere
-- Existing SKUs: Migrate existing SKUs
+What’s currently happening (problem)
+- The system currently uses `skus.fixed_price / skus.rate` as a single “price”.
+- In purchase bills, the “cost” you enter is stored into invoice_items `unit_price`/`rate`, and the backend currently updates `skus.fixed_price / skus.rate` from that, which overwrites the selling price.
+- Reports page currently shows inventory value, not daily sales/profit.
 
-Key design decision (to satisfy “no manual by staff”)
-- In day-to-day selling: staff will scan barcode → exact variant is selected automatically.
-- Search-based selection will still show “Name (Color)” so it’s unambiguous, but scanning should be the primary/fast path.
+High-level design (new pricing model)
+- Keep existing `skus.fixed_price` and `skus.rate` as the Selling price (shared on base product, inherited to variants).
+- Add new fields for Purchase/Cost price on SKUs:
+  - `skus.purchase_fixed_price` (cost per piece)
+  - `skus.purchase_rate` (cost per metre)
+- In Purchase billing:
+  - Cost price is mandatory per line item.
+  - Selling price is mandatory if missing for that product (as you approved: “Only if missing”).
+  - Show margin/profit % live:  
+    margin% = ((selling - cost) / cost) * 100 (when cost > 0)
+  - Also allow “enter margin%” to auto-calc selling price (optional, but matches your “shows profit percent directly or vice-versa” request).
 
-Proposed data model (database)
-We’ll keep the current skus table but extend it to represent both product (parent) and variant (child) rows, minimizing disruption:
+Data changes (backend/database)
+1) Schema changes (migration)
+- Add columns to `public.skus`:
+  - `purchase_fixed_price numeric null`
+  - `purchase_rate numeric null`
+- Add columns to `public.invoice_items`:
+  - `cost_price numeric null`  
+    (stored on SALES invoice items to snapshot the cost at the time of sale; used for accurate daily profit)
+  - `sell_price numeric null`  
+    (used mainly on PURCHASE invoice items to carry selling price when required; also useful for audit)
+- Update variant triggers so variants inherit BOTH selling price and purchase price from parent base product:
+  - In `trg_skus_enforce_variant_fields`: also copy `purchase_fixed_price/purchase_rate` from parent
+  - In `trg_skus_sync_variants_from_parent`: also propagate `purchase_fixed_price/purchase_rate` to variants
+- Update `complete_purchase_invoice` function:
+  - Stock update stays on variant (same as now)
+  - Update base product prices as:
+    - Purchase cost fields updated from the purchase invoice item:
+      - fixed: `purchase_fixed_price = invoice_items.unit_price`
+      - per_metre: `purchase_rate = invoice_items.rate` (or fallback `unit_price` if needed)
+    - Selling price fields updated only if missing AND a selling price was supplied:
+      - fixed: if base.fixed_price is null/0 then set from `invoice_items.sell_price`
+      - per_metre: if base.rate is null/0 then set from `invoice_items.sell_price`
+  - This prevents purchases from overwriting selling price, while still capturing cost.
 
-New columns on public.skus
-- parent_sku_id uuid null references public.skus(id)
-  - null => this row is a “base product”
-  - non-null => this row is a “color variant”
-- color text null
-  - set only for variants (e.g., “Maroon”)
-- base_name text null (optional but recommended)
-  - base product: base_name = name (or can be null)
-  - variant: base_name = parent.name snapshot or null (we can compute from join; snapshot is optional)
-- shared pricing fields live on base products:
-  - base product uses existing fields price_type, fixed_price, rate
-  - variants keep their own price fields but are treated as “read-only mirrors” (updated automatically whenever parent price changes)
+2) Migration for existing data
+- For existing SKUs:
+  - Initialize `purchase_fixed_price` / `purchase_rate` from current selling price only when purchase price is missing (best-effort default), OR leave as null and let future purchases fill it.
+  - I recommend: set purchase_* = selling_* only if purchase_* is null, so profit report won’t break immediately.
+- For existing invoice_items:
+  - Leave new columns null; daily profit report will use fallbacks for older data (see reporting section below).
 
-Constraints / integrity (implemented via backend function + triggers, not check constraints)
-- Variant must have parent_sku_id and color.
-- Variant barcode must be unique (already) and generally should be non-null for usable variants.
-- When parent price changes, cascade update to all variants’ price fields to keep existing billing code simple (or update frontend to always read parent price; we can do both for safety).
+Frontend changes (app behavior)
+1) Update SKU type + SKU forms (Inventory)
+- Extend the SKU type in `useSKUs` to include:
+  - `purchase_fixed_price`, `purchase_rate`
+- Inventory SKU form:
+  - For Base product editing: show both Selling price and Purchase price fields (purchase optional).
+  - For Variant: keep price fields read-only (inherited), but display both selling + purchase for clarity.
 
-RLS / permissions (align with your existing model)
-- Keep current rules: owners (and allowed staff roles) can create variants during purchase; stock changes still happen via purchase/sale/return functions.
-- Ensure staff cannot “change color” or “re-parent” a variant unless explicitly allowed (owner-only).
-- Ensure variants/base products can be viewed by authenticated users as today.
+2) Purchase billing UI (mandatory fields + margin display)
+A) Bill item row changes (Purchase mode)
+- In Purchase bill item row, show 2 price inputs:
+  - Cost (mandatory):  
+    - fixed: Cost (₹/pc) → stored in `invoice_items.unit_price`
+    - per_metre: Cost (₹/m) → stored in `invoice_items.rate` (and optionally sync `unit_price`)
+  - Selling (mandatory only if missing in SKU):  
+    - stored in `invoice_items.sell_price`
+- Show derived margin right next to it:
+  - “Profit: ₹X/pc” (or ₹X/m)
+  - “Margin: Y%”
+- Optional “Reverse” entry:
+  - Input for margin% that auto-fills selling price:
+    - selling = cost * (1 + margin%/100)
 
-Migration strategy (existing SKUs → base + “Standard” variant)
-For each existing sku row:
-1) Create a new base product row:
-   - name = existing sku.name without color suffix if we can detect it, otherwise keep same name
-   - price_type/rate/fixed_price copied from existing sku
-   - category/subcategory/description/image copied
-   - sku_code: generate a new unique code (since existing sku_code must remain on the variant to avoid breaking invoices/history)
-   - barcode: null
-   - quantity/length_metres: 0
-2) Convert the existing row into a variant:
-   - parent_sku_id = new base product id
-   - color = 'Standard'
-   - name becomes “{baseName} (Standard)” (because display chosen is Name (Color) everywhere)
-   - keep existing barcode/sku_code/stock so nothing breaks operationally
-3) Optional: If an existing sku name already matches “X (Color)”, we can attempt to parse color and use that instead of “Standard”. (We’ll do this conservatively and only if it’s a clear pattern.)
+B) Purchase validation (before checkout)
+- Extend the existing validation in `PurchaseBilling.tsx`:
+  - Already validates cost > 0; keep that.
+  - Add: if the SKU’s selling price is missing (0/null), require `item.sell_price > 0`.
+  - For per_metre: check the relevant selling field similarly.
 
-Frontend behavior changes
-A) Fetching SKUs (useSKUs hook)
-- Update fetchSKUs select to also fetch parent product fields when sku is a variant:
-  - parent: name, price_type, rate, fixed_price, category_id/subcategory_id, etc.
-- Add derived helpers in the hook (computed on client):
-  - displayName: if variant => `${parent.name} (${color})` (or use sku.name if already stored that way)
-  - effectivePriceType/effectiveRate/effectiveFixedPrice: from parent if present else from sku
-- Add hook helpers:
-  - getBaseProducts() and getVariantsForProduct(productId)
-  - findByBarcode already returns single SKU; ensure it returns variant rows and includes parent join.
+C) SKUCreateInline during purchase
+- When creating a new product+variant inline, require both:
+  - Selling price (mandatory)
+  - Purchase cost (mandatory)
+- Immediately show margin% preview as user types.
 
-B) Inventory page
-- List should primarily show variants (because stock and barcode are per variant).
-- Add grouping / filters:
-  - Search: match against base name + color + sku_code + barcode.
-  - Category filter: inherited from parent (so variants still filter correctly).
-- Editing:
-  - Editing variant should allow changing only variant-specific fields (color, barcode, image maybe), but price fields should be shown read-only (since shared).
-  - Editing base product should allow changing shared fields (name, category, price), and it updates all variants automatically.
-- Add “Add Product” flow:
-  - Step 1: create base product (name, category, price_type, price)
-  - Step 2: create first variant (color required, barcode auto-generated)
-  - This avoids staff manually typing colors during billing; creation is an owner/admin activity.
+3) Sales billing behavior (snapshot cost for accurate profit)
+- When adding an item to cart in Sales:
+  - Set `invoice_items.cost_price` from SKU’s current purchase_* price:
+    - fixed: cost_price = sku.purchase_fixed_price
+    - per_metre: cost_price = sku.purchase_rate
+- When creating the sales invoice items, insert `cost_price` into `invoice_items`.
+- This gives accurate “profit per day” even if cost changes later.
 
-C) Billing (SKUSearchDialog + sales/purchase pages)
-- Search results show variants only (because billing needs a sellable/buyable stock unit and barcode).
-- Display as “Name (Color)” everywhere:
-  - Always show variant.displayName.
-- Price shown should be the shared price (parent) and should match exactly across variants.
-- Barcode scanning:
-  - Sales/Purchase scan should find the variant directly by barcode and add it (no color prompt).
-- Purchase inline SKU creation (SKUCreateInline / PurchaseBilling)
-  - Replace “Create SKU” with “Create Product Variant”
-  - Required inputs for creation:
-    - Base name (design)
-    - Color (owner/admin enters at creation time)
-    - Price type + shared price
-  - On create:
-    - If base product with same name exists, create only a new variant with that parent.
-    - Otherwise create base + variant.
-  - Barcode auto-generated for the new variant.
+Reporting changes (daily profit)
+- Expand `Reports` page with a “Daily Profit” section:
+  - Date picker (default = today)
+  - Summary cards:
+    - Total Sales (revenue)
+    - Total Cost (COGS)
+    - Profit
+    - Profit %
+- Query logic:
+  - Fetch completed sale invoices for selected day, join invoice_items.
+  - Revenue:
+    - Use invoice_items.line_total sum.
+  - Cost:
+    - For each invoice item:
+      - if cost_price is present, use it
+      - else fallback to SKU current purchase_* (for old invoices)
+    - cost total = cost_price * qty OR cost_price * length_metres depending on price_type.
+  - Profit = revenue - cost.
+- This will not include returns/cancelled invoices by default. (Returns are negative invoices; we can add a toggle later if needed.)
 
-D) Invoices / printing
-- Invoice item name should store and display variant name in “Name (Color)” format (so historical invoices remain clear even if base product name changes later).
-- Ensure invoice item sku_name always uses variant displayName at time of sale/purchase.
+Security / validation notes
+- Client-side validation with zod stays in place.
+- The backend function `complete_purchase_invoice` should also defensively validate:
+  - cost > 0
+  - sell_price > 0 only when selling is missing (optional but recommended for integrity)
 
-Backend logic impact (stock/invoice RPCs)
-- The existing complete_invoice / complete_purchase_invoice functions operate on invoice_items.sku_id pointing to skus rows.
-- With variants, sku_id will always be the variant id, so stock deductions/additions remain correct without rewriting these functions.
-- Only ensure that purchase completion updates the shared price:
-  - Today purchase completion updates fixed_price/rate on the sku itself.
-  - We’ll adjust logic so that when purchasing a variant, it updates the parent’s shared price and then cascades to all variants.
-  - This keeps “shared price” truly shared across colors.
+Implementation sequence (safe + incremental)
+1) Database migration:
+   - Add new columns to `skus` and `invoice_items`
+   - Update triggers to sync purchase prices
+   - Update `complete_purchase_invoice` logic to store cost into purchase_* fields and only set selling price if missing
+   - Optional backfill purchase_* for existing SKUs
+2) Update `useSKUs` TypeScript type + fetching to include new fields.
+3) Update Purchase UI:
+   - BillItemRow purchase mode: add Selling price input + margin display + (optional) margin-to-selling calculator
+   - PurchaseBilling validation: enforce rules
+   - SKUCreateInline: require both cost + selling (and show margin)
+4) Update Sales flow:
+   - Set `cost_price` snapshot for sales invoice items and insert into DB
+5) Update Reports page:
+   - Add daily profit section and calculations
+   - Add fallback logic for old data
+6) QA checklist:
+   - Purchase bill cannot complete if cost is missing/0
+   - If SKU selling price missing, purchase bill cannot complete without entering selling price
+   - Selling price is not overwritten by purchase once already set
+   - Sales invoice items store cost_price and profit report matches expectations
 
-How we’ll address “barcode should have all details”
-- The barcode itself remains an opaque unique code (best for scanning).
-- The printed barcode label will include human-readable:
-  - Base name + color (Name (Color))
-  - SKU code (variant sku_code)
-  - Price (optional)
-This achieves “barcode has all details” in practice: scanning identifies exact variant; label visually shows the details.
+Files/areas that will be touched (expected)
+- Backend migration SQL (schema + function updates)
+- `src/hooks/useSKUs.tsx` (SKU type + fetch)
+- `src/hooks/useBilling.tsx` (addToCart + insert invoice items with cost_price/sell_price)
+- `src/components/billing/BillItemRow.tsx` (purchase UI: 2 price fields + margin)
+- `src/pages/PurchaseBilling.tsx` (validation rules + pass-through sell_price)
+- `src/components/billing/SKUCreateInline.tsx` (collect both prices + margin)
+- `src/pages/Reports.tsx` (daily profit report UI + query)
 
-Validation / QA checklist (what we will verify after implementation)
-- Creating a base product updates all variants’ price when edited.
-- Scanning a barcode adds the correct color variant to cart (sales and purchase).
-- Searching shows variants with “Name (Color)” and correct shared pricing.
-- Inventory stock shown per variant and cannot be manually edited unless permitted (and still logs if allowed).
-- Existing SKUs are migrated and remain usable (barcode lookup, invoices, stock).
-- Purchase completion with Cash/UPI/Card does not accidentally record as credit (separate issue you raised earlier; we will retest end-to-end after changes).
-
-Scope sequencing (recommended order)
-1) Database migration: add columns + FK + helper functions/triggers for price sync and migration.
-2) Update useSKUs to understand parent/variant and provide “effective” pricing + displayName.
-3) Update Inventory list + SKUCard + SKUForm to support variants/base editing.
-4) Update Billing search + barcode scan flows to select variants and show “Name (Color)”.
-5) Update Purchase inline creation to create base+variant or variant under existing base.
-6) Run migration of existing SKUs and verify data.
-7) Full regression test: sales, purchase, returns, cancel invoice, barcode printing.
-
-What I need from you (already resolved)
-- All key product-variant decisions are already finalized. No further blocking questions.
-
-Technical notes (implementation constraints)
-- We will not edit auto-generated backend client/types files manually.
-- Database changes will be done via migrations.
-- We will keep invoice/stock RPCs mostly intact by ensuring invoice_items always reference variant SKU rows.
+Acceptance criteria (what you should see)
+- In Purchase:
+  - Each item shows Cost and Selling fields
+  - Margin% shows instantly
+  - You cannot finish purchase without valid cost, and selling is required if product has no selling price yet
+- In Sales:
+  - Selling price stays as before
+  - Profit report shows correct numbers for the day
+- In Reports:
+  - “Daily Profit” section shows Sales, Cost, Profit, Profit% for selected date
