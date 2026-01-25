@@ -69,9 +69,9 @@ export function CustomerLedgerDialog({
       });
 
       // Fetch all invoices for this customer (sales and returns)
-      const { data: invoiceData } = await supabase
+       const { data: invoiceData } = await supabase
         .from('invoices')
-        .select('id, invoice_number, invoice_type, created_at, total_amount, pending_amount, status')
+         .select('id, invoice_number, invoice_type, created_at, total_amount, pending_amount, advance_applied, status')
         .eq('customer_id', customer.id)
         .eq('status', 'completed')
         .order('created_at', { ascending: true });
@@ -96,14 +96,18 @@ export function CustomerLedgerDialog({
     const entries: LedgerEntry[] = [];
 
     // Add invoices (sales = debit, returns = credit)
-    invoices.forEach((inv) => {
+     invoices.forEach((inv) => {
       if (inv.invoice_type === 'sale') {
+         const pending = Number(inv.pending_amount || 0);
+         const advanceApplied = Number(inv.advance_applied || 0);
         entries.push({
           id: inv.id,
           date: inv.created_at,
           type: 'sale',
           reference: inv.invoice_number,
-          debit: inv.pending_amount || 0, // Only pending amount is "owed"
+           // IMPORTANT: ledger running_balance is based on NET = outstanding_balance - advance_balance.
+           // So a sale increases net by (pending_amount + advance_applied).
+           debit: pending + advanceApplied,
           credit: 0,
           balance: 0,
           advance_balance: 0,
