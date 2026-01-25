@@ -33,6 +33,7 @@ import { useSKUs } from '@/hooks/useSKUs';
 import { useSuppliers, type Supplier } from '@/hooks/useSuppliers';
 import { useToast } from '@/hooks/use-toast';
 import { usePermissions } from '@/hooks/usePermissions';
+import { useCustomers, type Customer } from '@/hooks/useCustomers';
 
 export default function Billing() {
   const {
@@ -48,6 +49,7 @@ export default function Billing() {
     cancelInvoice,
     cancelPurchaseInvoice,
   } = useBilling();
+   const { customers } = useCustomers();
   const { skus, findByBarcode } = useSKUs();
   const { suppliers } = useSuppliers();
   const { hasPermission } = usePermissions();
@@ -62,7 +64,7 @@ export default function Billing() {
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [viewingInvoice, setViewingInvoice] = useState<Invoice | null>(null);
-
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const totals = calculateTotals();
 
   // Filter invoices by type
@@ -104,7 +106,7 @@ export default function Billing() {
 
     setIsProcessing(true);
     try {
-      const result = await createAndCompleteBill(customerName, customerPhone, paymentMethod);
+      const result = await createAndCompleteBill(customerName, customerPhone, paymentMethod,paymentMethod === 'credit' ? 0 : totals.totalAmount);
       if (result) {
         setShowPayment(false);
         toast({
@@ -462,6 +464,9 @@ export default function Billing() {
       )}
 
       <PaymentDialog
+        customers={customers}             
+        selectedCustomer={selectedCustomer} 
+        onCustomerSelect={setSelectedCustomer}
         open={showPayment}
         onClose={() => setShowPayment(false)}
         totalAmount={totals.totalAmount}

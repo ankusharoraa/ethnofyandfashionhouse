@@ -206,7 +206,8 @@ export function useBilling() {
     customerName?: string,
     customerPhone?: string,
     supplierId?: string,
-    supplierName?: string
+    supplierName?: string,
+    customerId?: string
   ) => {
     const invoiceNumber = await generateInvoiceNumber();
     const totals = calculateTotals();
@@ -216,6 +217,7 @@ export function useBilling() {
       .insert({
         invoice_number: invoiceNumber,
         invoice_type: invoiceType,
+        customer_id: customerId || null,
         customer_name: customerName || null,
         customer_phone: customerPhone || null,
         supplier_id: supplierId || null,
@@ -438,7 +440,8 @@ export function useBilling() {
   const createAndCompleteBill = async (
     customerName?: string,
     customerPhone?: string,
-    paymentMethod: PaymentMethod = 'cash'
+    paymentMethod: PaymentMethod = 'cash',
+    customerId?: string
   ) => {
     // Validate cart
     if (cartItems.length === 0) {
@@ -472,7 +475,7 @@ export function useBilling() {
     }
 
     // Create draft invoice
-    const invoice = await createDraftInvoice('sale', customerName, customerPhone);
+    const invoice = await createDraftInvoice('sale', customerName, customerPhone,customerId);
     if (!invoice) return null;
 
     // Complete the invoice (atomic stock update)
