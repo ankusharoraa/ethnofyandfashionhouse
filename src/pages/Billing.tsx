@@ -54,7 +54,7 @@ export default function Billing() {
     fetchInvoices,
   } = useBilling();
    const { customers } = useCustomers();
-  const { skus, findByBarcode, createSKU } = useSKUs();
+  const { variantSkus, baseSkus, findByBarcode, createSKU } = useSKUs();
   const { suppliers } = useSuppliers();
   const { hasPermission } = usePermissions();
   const { toast } = useToast();
@@ -81,11 +81,18 @@ export default function Billing() {
   };
 
   const handleCreateSkuForPurchase = async (draft: {
-    name: string;
+    base_name: string;
+    color: string;
     price_type: 'fixed' | 'per_metre';
     fixed_price?: number | null;
     rate?: number | null;
   }) => {
+    const baseName = draft.base_name.trim();
+    const color = draft.color.trim();
+    if (!baseName || !color) return null;
+
+    const existingBase = baseSkus.find((s) => s.name.trim().toLowerCase() === baseName.toLowerCase());
+
     // 1) generate unique barcode (Code128 value)
     const { data: barcode, error } = await supabase.rpc('generate_unique_barcode', { p_prefix: 'BC' });
     if (error) {
@@ -94,20 +101,43 @@ export default function Billing() {
       return null;
     }
 
-    // 2) create SKU with 0 initial stock (stock is increased by purchase completion RPC)
-    const sku = await createSKU({
-      sku_code: generateSkuCode(draft.name),
+    // 2) Ensure base product exists (shared price)
+    const base =
+      existingBase ||
+      (await createSKU({
+        sku_code: generateSkuCode(baseName),
+        barcode: null,
+        name: baseName,
+        price_type: draft.price_type,
+        fixed_price: draft.price_type === 'fixed' ? (draft.fixed_price ?? 0) : null,
+        rate: draft.price_type === 'per_metre' ? (draft.rate ?? 0) : null,
+        quantity: 0,
+        length_metres: 0,
+        low_stock_threshold: 5,
+      }));
+
+    if (!base) return null;
+
+    // Avoid duplicates
+    const existingVariant = variantSkus.find(
+      (s) => s.parent_sku_id === base.id && (s.color ?? '').trim().toLowerCase() === color.toLowerCase()
+    );
+    if (existingVariant) return existingVariant;
+
+    // 3) create variant SKU with 0 initial stock (stock is increased by purchase completion RPC)
+    const variant = await createSKU({
+      sku_code: generateSkuCode(`${baseName}-${color}`),
       barcode,
-      name: draft.name,
-      price_type: draft.price_type,
-      fixed_price: draft.price_type === 'fixed' ? (draft.fixed_price ?? 0) : null,
-      rate: draft.price_type === 'per_metre' ? (draft.rate ?? 0) : null,
+      name: baseName,
+      parent_sku_id: base.id,
+      base_name: baseName,
+      color,
       quantity: 0,
       length_metres: 0,
       low_stock_threshold: 5,
     });
 
-    return (sku as any) || null;
+    return (variant as any) || null;
   };
 
   // Deep link support: /billing?invoiceId=XXX opens invoice details
@@ -553,7 +583,7 @@ export default function Billing() {
       <SKUSearchDialog
         open={showSearch}
         onClose={() => setShowSearch(false)}
-        skus={skus}
+        skus={variantSkus}
         onSelect={addToCart}
         onScanRequest={() => {
           setShowSearch(false);

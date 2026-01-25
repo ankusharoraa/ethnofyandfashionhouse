@@ -49,7 +49,7 @@ export default function PurchaseBilling() {
     createAndCompletePurchaseBill,
     cancelPurchaseInvoice,
   } = useBilling();
-  const { skus, findByBarcode, createSKU, fetchSKUs } = useSKUs();
+  const { variantSkus, baseSkus, findByBarcode, createSKU, fetchSKUs } = useSKUs();
   const { suppliers, createSupplier, fetchSuppliers } = useSuppliers();
   const { hasPermission } = usePermissions();
   const { toast } = useToast();
@@ -77,11 +77,18 @@ export default function PurchaseBilling() {
   };
 
   const handleCreateSkuForPurchase = async (draft: {
-    name: string;
+    base_name: string;
+    color: string;
     price_type: 'fixed' | 'per_metre';
     fixed_price?: number | null;
     rate?: number | null;
   }) => {
+    const baseName = draft.base_name.trim();
+    const color = draft.color.trim();
+    if (!baseName || !color) return null;
+
+    const existingBase = baseSkus.find((s) => s.name.trim().toLowerCase() === baseName.toLowerCase());
+
     const { data: barcode, error } = await supabase.rpc('generate_unique_barcode', { p_prefix: 'BC' });
     if (error) {
       console.error('Failed to generate barcode:', error);
@@ -89,19 +96,40 @@ export default function PurchaseBilling() {
       return null;
     }
 
-    const sku = await createSKU({
-      sku_code: generateSkuCode(draft.name),
+    const base =
+      existingBase ||
+      (await createSKU({
+        sku_code: generateSkuCode(baseName),
+        barcode: null,
+        name: baseName,
+        price_type: draft.price_type,
+        fixed_price: draft.price_type === 'fixed' ? (draft.fixed_price ?? 0) : null,
+        rate: draft.price_type === 'per_metre' ? (draft.rate ?? 0) : null,
+        quantity: 0,
+        length_metres: 0,
+        low_stock_threshold: 5,
+      }));
+
+    if (!base) return null;
+
+    const existingVariant = variantSkus.find(
+      (s) => s.parent_sku_id === base.id && (s.color ?? '').trim().toLowerCase() === color.toLowerCase()
+    );
+    if (existingVariant) return existingVariant;
+
+    const variant = await createSKU({
+      sku_code: generateSkuCode(`${baseName}-${color}`),
       barcode,
-      name: draft.name,
-      price_type: draft.price_type,
-      fixed_price: draft.price_type === 'fixed' ? (draft.fixed_price ?? 0) : null,
-      rate: draft.price_type === 'per_metre' ? (draft.rate ?? 0) : null,
+      name: baseName,
+      parent_sku_id: base.id,
+      base_name: baseName,
+      color,
       quantity: 0,
       length_metres: 0,
       low_stock_threshold: 5,
     });
 
-    return (sku as any) || null;
+    return (variant as any) || null;
   };
 
   const purchaseInvoices = invoices.filter((i) => i.invoice_type === 'purchase');
@@ -159,11 +187,12 @@ export default function PurchaseBilling() {
   }, [filterBySupplierHistory, selectedSupplier]);
 
   const skusForPicker = useMemo(() => {
-    if (!filterBySupplierHistory) return skus;
-    if (!selectedSupplier) return skus;
-    if (!supplierSkuIds) return skus;
-    return skus.filter((s) => supplierSkuIds.has(s.id));
-  }, [filterBySupplierHistory, selectedSupplier, supplierSkuIds, skus]);
+    const list = variantSkus;
+    if (!filterBySupplierHistory) return list;
+    if (!selectedSupplier) return list;
+    if (!supplierSkuIds) return list;
+    return list.filter((s) => supplierSkuIds.has(s.id));
+  }, [filterBySupplierHistory, selectedSupplier, supplierSkuIds, variantSkus]);
 
   const handleScan = async (code: string) => {
     setShowScanner(false);

@@ -48,7 +48,7 @@ export default function SalesBilling() {
     fetchInvoices,
   } = useBilling();
   const { customers } = useCustomers();
-  const { skus, findByBarcode } = useSKUs();
+  const { variantSkus, findByBarcode } = useSKUs();
   const { hasPermission } = usePermissions();
   const { toast } = useToast();
 
@@ -334,7 +334,7 @@ export default function SalesBilling() {
       <SKUSearchDialog
         open={showSearch}
         onClose={() => setShowSearch(false)}
-        skus={skus}
+        skus={variantSkus}
         onSelect={addToCart}
         onScanRequest={() => {
           setShowSearch(false);

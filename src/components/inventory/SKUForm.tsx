@@ -34,7 +34,8 @@ import type { SKU, Category, Subcategory } from '@/hooks/useSKUs';
 const skuSchema = z.object({
   sku_code: z.string().min(1, 'SKU code is required').max(50),
   barcode: z.string().max(100).optional().nullable(),
-  name: z.string().min(1, 'Name is required').max(200),
+  base_name: z.string().min(1, 'Design name is required').max(200),
+  color: z.string().min(1, 'Color is required').max(60),
   name_hindi: z.string().max(200).optional().nullable(),
   description: z.string().max(1000).optional().nullable(),
   category_id: z.string().optional().nullable(),
@@ -78,7 +79,8 @@ export function SKUForm({
     defaultValues: {
       sku_code: '',
       barcode: '',
-      name: '',
+      base_name: '',
+      color: '',
       name_hindi: '',
       description: '',
       category_id: null,
@@ -107,10 +109,13 @@ export function SKUForm({
 
   useEffect(() => {
     if (sku) {
+      const baseName = sku.base_name || sku.name.replace(/\s*\([^)]+\)\s*$/, '');
+      const color = sku.color || (sku.name.match(/\(([^)]+)\)\s*$/)?.[1] ?? '');
       form.reset({
         sku_code: sku.sku_code,
         barcode: sku.barcode,
-        name: sku.name,
+        base_name: baseName,
+        color,
         name_hindi: sku.name_hindi,
         description: sku.description,
         category_id: sku.category_id,
@@ -126,7 +131,8 @@ export function SKUForm({
       form.reset({
         sku_code: '',
         barcode: scannedBarcode || '',
-        name: '',
+        base_name: '',
+        color: '',
         name_hindi: '',
         description: '',
         category_id: null,
@@ -146,6 +152,7 @@ export function SKUForm({
     try {
       await onSubmit({
         ...data,
+        name: data.base_name, // DB trigger will format variant as "Name (Color)" when parent_sku_id is set
         category_id: data.category_id || null,
         subcategory_id: data.subcategory_id || null,
         barcode: data.barcode || null,
@@ -222,12 +229,26 @@ export function SKUForm({
 
               <FormField
                 control={form.control}
-                name="name"
+                name="base_name"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Name *</FormLabel>
+                    <FormLabel>Design Name *</FormLabel>
                     <FormControl>
-                      <Input placeholder="Product name" {...field} />
+                      <Input placeholder="e.g. Cotton Suit" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="color"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Color *</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g. Maroon" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
