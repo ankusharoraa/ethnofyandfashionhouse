@@ -18,6 +18,7 @@ import { BillItemRow } from '@/components/billing/BillItemRow';
 import { SKUSearchDialog } from '@/components/billing/SKUSearchDialog';
 import { PurchasePaymentDialog } from '@/components/billing/PurchasePaymentDialog';
 import { SupplierSearchDialog } from '@/components/billing/SupplierSearchDialog';
+import { SupplierCreateDialog } from '@/components/suppliers/SupplierCreateDialog';
 import { InvoiceCard } from '@/components/billing/InvoiceCard';
 import { InvoiceViewDialog } from '@/components/billing/InvoiceViewDialog';
 import { BarcodeScanner } from '@/components/scanner/BarcodeScanner';
@@ -49,13 +50,14 @@ export default function PurchaseBilling() {
     cancelPurchaseInvoice,
   } = useBilling();
   const { skus, findByBarcode, createSKU, fetchSKUs } = useSKUs();
-  const { suppliers } = useSuppliers();
+  const { suppliers, createSupplier, fetchSuppliers } = useSuppliers();
   const { hasPermission } = usePermissions();
   const { toast } = useToast();
 
   const [showSearch, setShowSearch] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
   const [showSupplierSearch, setShowSupplierSearch] = useState(false);
+  const [showSupplierCreate, setShowSupplierCreate] = useState(false);
   const [showPurchasePayment, setShowPurchasePayment] = useState(false);
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
   const [pendingPurchaseCheckout, setPendingPurchaseCheckout] = useState(false);
@@ -289,6 +291,8 @@ export default function PurchaseBilling() {
     }
   };
 
+  const canCreateSupplierHere = suppliers.length === 0;
+
   return (
     <AppLayout>
       <Tabs defaultValue="new-purchase" className="space-y-6">
@@ -329,8 +333,18 @@ export default function PurchaseBilling() {
                   </div>
                 )}
               </div>
-              <Button variant="outline" size="sm" onClick={() => setShowSupplierSearch(true)}>
-                {selectedSupplier ? 'Change' : 'Select Supplier'}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  if (canCreateSupplierHere) {
+                    setShowSupplierCreate(true);
+                    return;
+                  }
+                  setShowSupplierSearch(true);
+                }}
+              >
+                {selectedSupplier ? 'Change' : canCreateSupplierHere ? 'Add Supplier' : 'Select Supplier'}
               </Button>
             </div>
 
@@ -352,13 +366,13 @@ export default function PurchaseBilling() {
             </div>
           </Card>
 
-          {/* Add Item Buttons */}
-          <div className="flex gap-3">
-            <Button onClick={() => setShowSearch(true)} className="flex-1">
+           {/* Add Item Buttons */}
+           <div className="grid grid-cols-2 gap-3">
+             <Button onClick={() => setShowSearch(true)}>
               <Plus className="w-4 h-4 mr-2" />
               Add Purchased Item
             </Button>
-            <Button variant="outline" onClick={() => setShowScanner(true)}>
+             <Button variant="outline" onClick={() => setShowScanner(true)}>
               <QrCode className="w-4 h-4 mr-2" />
               Scan
             </Button>
@@ -493,6 +507,28 @@ export default function PurchaseBilling() {
         }}
         suppliers={suppliers}
         onSelect={handleSelectSupplier}
+        onCreateNew={canCreateSupplierHere ? () => {
+          setShowSupplierSearch(false);
+          setShowSupplierCreate(true);
+        } : undefined}
+      />
+
+      <SupplierCreateDialog
+        open={showSupplierCreate}
+        onClose={() => setShowSupplierCreate(false)}
+        onCreate={async (data) => {
+          const created = await createSupplier(data);
+          // Keep list fresh either way
+          void fetchSuppliers();
+          return created as Supplier | null;
+        }}
+        onCreated={(created) => {
+          setSelectedSupplier(created);
+          if (pendingPurchaseCheckout) {
+            setPendingPurchaseCheckout(false);
+            setShowPurchasePayment(true);
+          }
+        }}
       />
 
       {showScanner && <BarcodeScanner onScan={handleScan} onClose={() => setShowScanner(false)} />}
