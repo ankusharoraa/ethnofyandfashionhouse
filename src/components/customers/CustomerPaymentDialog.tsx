@@ -20,7 +20,8 @@ import type { PaymentMethod } from '@/hooks/useBilling';
 interface CustomerPaymentDialogProps {
   open: boolean;
   onClose: () => void;
-  customer: Customer;
+  // Accept either a full Customer (from useCustomers) or a minimal shape (e.g. from ledger page)
+  customer: Pick<Customer, 'id' | 'name' | 'outstanding_balance'>;
   onSuccess: () => void;
 }
 
