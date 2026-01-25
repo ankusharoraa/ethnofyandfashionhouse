@@ -70,7 +70,7 @@ export function BillItemRow({ item, onUpdate, onRemove, isPurchase = false }: Bi
           {item.sku_code} • ₹{item.unit_price.toFixed(2)}{isPerMetre ? '/m' : ''}
         </p>
         <p className="text-xs text-muted-foreground">
-          Stock: {item.availableStock} {isPerMetre ? 'm' : 'pcs'}
+          {isPurchase ? 'Current stock' : 'Stock'}: {item.availableStock} {isPerMetre ? 'm' : 'pcs'}
         </p>
       </div>
 

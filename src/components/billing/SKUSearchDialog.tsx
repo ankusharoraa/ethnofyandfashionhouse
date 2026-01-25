@@ -94,7 +94,7 @@ export function SKUSearchDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Search className="w-5 h-5 text-primary" />
-            Add Item to Bill
+            {mode === 'purchase' ? 'Add Purchased Item' : 'Add Item to Bill'}
           </DialogTitle>
         </DialogHeader>
 
@@ -185,6 +185,7 @@ export function SKUSearchDialog({
                     const isPerMetre = sku.price_type === 'per_metre';
                     const stock = isPerMetre ? sku.length_metres : sku.quantity;
                     const isOutOfStock = stock <= 0;
+                    const isDisabled = mode === 'sale' && isOutOfStock;
 
                     return (
                       <motion.div
@@ -194,11 +195,11 @@ export function SKUSearchDialog({
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0 }}
                         className={`flex items-center gap-3 p-3 rounded-lg border transition-colors cursor-pointer ${
-                          isOutOfStock
+                          isDisabled
                             ? 'bg-muted/50 opacity-60 cursor-not-allowed'
                             : 'hover:bg-muted/50'
                         }`}
-                        onClick={() => !isOutOfStock && handleSelect(sku)}
+                        onClick={() => !isDisabled && handleSelect(sku)}
                       >
                         <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
                           {isPerMetre ? (
@@ -227,14 +228,23 @@ export function SKUSearchDialog({
                             {isPerMetre && <span className="text-xs">/m</span>}
                           </p>
                           <Badge
-                            variant={isOutOfStock ? 'destructive' : stock < 5 ? 'secondary' : 'outline'}
+                            variant={
+                              mode === 'purchase'
+                                ? 'outline'
+                                : isOutOfStock
+                                  ? 'destructive'
+                                  : stock < 5
+                                    ? 'secondary'
+                                    : 'outline'
+                            }
                             className="text-xs"
                           >
+                            {mode === 'purchase' ? 'Current: ' : ''}
                             {stock} {isPerMetre ? 'm' : 'pcs'}
                           </Badge>
                         </div>
 
-                        {!isOutOfStock && (
+                        {!isDisabled && (
                           <Button size="icon" variant="ghost" className="shrink-0">
                             <Plus className="w-4 h-4" />
                           </Button>
