@@ -98,6 +98,7 @@ export type Database = {
       customers: {
         Row: {
           address: string | null
+          advance_balance: number
           city: string | null
           created_at: string
           created_by: string | null
@@ -113,6 +114,7 @@ export type Database = {
         }
         Insert: {
           address?: string | null
+          advance_balance?: number
           city?: string | null
           created_at?: string
           created_by?: string | null
@@ -128,6 +130,7 @@ export type Database = {
         }
         Update: {
           address?: string | null
+          advance_balance?: number
           city?: string | null
           created_at?: string
           created_by?: string | null
@@ -252,6 +255,7 @@ export type Database = {
       }
       invoices: {
         Row: {
+          advance_applied: number
           amount_paid: number
           created_at: string
           created_by: string | null
@@ -276,6 +280,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          advance_applied?: number
           amount_paid?: number
           created_at?: string
           created_by?: string | null
@@ -300,6 +305,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          advance_applied?: number
           amount_paid?: number
           created_at?: string
           created_by?: string | null
