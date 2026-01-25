@@ -17,8 +17,9 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { supabase } from '@/integrations/supabase/client';
 import { CustomerPaymentDialog } from '@/components/customers/CustomerPaymentDialog';
+import { CustomerAdvanceRefundDialog } from '@/components/customers/CustomerAdvanceRefundDialog';
 
-type LedgerEntryType = 'sale' | 'return' | 'payment';
+type LedgerEntryType = 'sale' | 'return' | 'payment' | 'adjustment';
 
 type LedgerRow = {
   id: string;
@@ -67,6 +68,7 @@ export default function CustomerLedger() {
   const [isPaymentLoading, setIsPaymentLoading] = useState(false);
 
   const [showReceivePayment, setShowReceivePayment] = useState(false);
+  const [showAdvanceRefund, setShowAdvanceRefund] = useState(false);
 
   const paymentId = searchParams.get('paymentId');
 
@@ -191,6 +193,8 @@ export default function CustomerLedger() {
         return <Undo2 className="w-4 h-4" />;
       case 'payment':
         return <ArrowDownLeft className="w-4 h-4" />;
+      case 'adjustment':
+        return <Undo2 className="w-4 h-4" />;
     }
   };
 
@@ -202,6 +206,8 @@ export default function CustomerLedger() {
         return 'Return';
       case 'payment':
         return 'Payment';
+      case 'adjustment':
+        return 'Adjustment';
     }
   };
 
@@ -249,15 +255,31 @@ export default function CustomerLedger() {
         <div className="flex items-center gap-2">
           {headerBadges}
           {customer && (
-            <Button
-              variant="outline"
-              onClick={() => setShowReceivePayment(true)}
-              disabled={customer.is_deleted}
-              title={customer.is_deleted ? 'Customer is archived' : 'Receive payment'}
-            >
-              <Wallet className="w-4 h-4 mr-2" />
-              Receive Payment
-            </Button>
+            <>
+              <Button
+                variant="outline"
+                onClick={() => setShowReceivePayment(true)}
+                disabled={customer.is_deleted}
+                title={customer.is_deleted ? 'Customer is archived' : 'Receive payment'}
+              >
+                <Wallet className="w-4 h-4 mr-2" />
+                Receive Payment
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setShowAdvanceRefund(true)}
+                disabled={customer.is_deleted || Number(customer.advance_balance || 0) <= 0}
+                title={
+                  customer.is_deleted
+                    ? 'Customer is archived'
+                    : Number(customer.advance_balance || 0) <= 0
+                      ? 'No advance to refund'
+                      : 'Refund advance'
+                }
+              >
+                Refund Advance
+              </Button>
+            </>
           )}
         </div>
       </div>
@@ -383,6 +405,15 @@ export default function CustomerLedger() {
         <CustomerPaymentDialog
           open={showReceivePayment}
           onClose={() => setShowReceivePayment(false)}
+          customer={customer}
+          onSuccess={handlePaymentSuccess}
+        />
+      )}
+
+      {customer && (
+        <CustomerAdvanceRefundDialog
+          open={showAdvanceRefund}
+          onClose={() => setShowAdvanceRefund(false)}
           customer={customer}
           onSuccess={handlePaymentSuccess}
         />
