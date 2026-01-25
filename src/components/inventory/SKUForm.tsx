@@ -57,6 +57,7 @@ interface SKUFormProps {
   categories: Category[];
   subcategories: Subcategory[];
   scannedBarcode?: string;
+  allowStockEdit?: boolean;
 }
 
 export function SKUForm({
@@ -67,6 +68,7 @@ export function SKUForm({
   categories,
   subcategories,
   scannedBarcode,
+  allowStockEdit = false,
 }: SKUFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [filteredSubcategories, setFilteredSubcategories] = useState<Subcategory[]>([]);
@@ -386,8 +388,12 @@ export function SKUForm({
                               placeholder="0"
                               {...field}
                               onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
+                              disabled={sku && !allowStockEdit}
                             />
                           </FormControl>
+                          {sku && !allowStockEdit && (
+                            <p className="text-xs text-muted-foreground">Stock managed via Purchases/Sales</p>
+                          )}
                           <FormMessage />
                         </FormItem>
                       )}
@@ -433,8 +439,12 @@ export function SKUForm({
                               placeholder="0.0"
                               {...field}
                               onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+                              disabled={sku && !allowStockEdit}
                             />
                           </FormControl>
+                          {sku && !allowStockEdit && (
+                            <p className="text-xs text-muted-foreground">Stock managed via Purchases/Sales</p>
+                          )}
                           <FormMessage />
                         </FormItem>
                       )}
