@@ -7,13 +7,14 @@ import type { Customer } from '@/hooks/useCustomers';
 
 interface CustomerCardProps {
   customer: Customer;
+  onSelect?: (customer: Customer) => void;
   onEdit?: (customer: Customer) => void;
   onDelete?: (customer: Customer) => void;
   onReceivePayment?: (customer: Customer) => void;
   onViewLedger?: (customer: Customer) => void;
 }
 
-export function CustomerCard({ customer, onEdit, onDelete, onReceivePayment, onViewLedger }: CustomerCardProps) {
+export function CustomerCard({ customer, onSelect, onEdit, onDelete, onReceivePayment, onViewLedger }: CustomerCardProps) {
   const hasBalance = customer.outstanding_balance > 0;
 
   return (
@@ -23,7 +24,11 @@ export function CustomerCard({ customer, onEdit, onDelete, onReceivePayment, onV
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -20 }}
     >
-      <Card className="p-4">
+      <Card
+        className="p-4"
+        onClick={() => onSelect?.(customer)}
+        role={onSelect ? 'button' : undefined}
+      >
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1 min-w-0">
             {/* Name */}
@@ -70,7 +75,15 @@ export function CustomerCard({ customer, onEdit, onDelete, onReceivePayment, onV
           {/* Actions */}
           <div className="flex gap-1">
             {onViewLedger && (
-              <Button variant="ghost" size="icon" onClick={() => onViewLedger(customer)} title="View Ledger">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onViewLedger(customer);
+                }}
+                title="View Ledger"
+              >
                 <FileText className="w-4 h-4" />
               </Button>
             )}
@@ -78,7 +91,10 @@ export function CustomerCard({ customer, onEdit, onDelete, onReceivePayment, onV
               <Button 
                 variant="ghost" 
                 size="icon" 
-                onClick={() => onReceivePayment(customer)} 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onReceivePayment(customer);
+                }}
                 title="Receive Payment"
                 className="text-green-600 hover:text-green-700 hover:bg-green-50"
               >
@@ -86,7 +102,14 @@ export function CustomerCard({ customer, onEdit, onDelete, onReceivePayment, onV
               </Button>
             )}
             {onEdit && (
-              <Button variant="ghost" size="icon" onClick={() => onEdit(customer)}>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEdit(customer);
+                }}
+              >
                 <Edit className="w-4 h-4" />
               </Button>
             )}
@@ -95,7 +118,10 @@ export function CustomerCard({ customer, onEdit, onDelete, onReceivePayment, onV
                 variant="ghost"
                 size="icon"
                 className="text-destructive hover:text-destructive"
-                onClick={() => onDelete(customer)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete(customer);
+                }}
               >
                 <Trash2 className="w-4 h-4" />
               </Button>

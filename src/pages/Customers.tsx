@@ -6,6 +6,7 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { CustomerCard } from '@/components/customers/CustomerCard';
 import { CustomerForm } from '@/components/customers/CustomerForm';
 import { CustomerPaymentDialog } from '@/components/customers/CustomerPaymentDialog';
+import { CustomerQuickViewPanel } from '@/components/customers/CustomerQuickViewPanel';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
@@ -19,6 +20,7 @@ export default function Customers() {
   const [showForm, setShowForm] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [paymentCustomer, setPaymentCustomer] = useState<Customer | null>(null);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [search, setSearch] = useState('');
 
   const filtered = useMemo(() => {
@@ -93,19 +95,29 @@ export default function Customers() {
           </p>
         </Card>
       ) : (
-        <div className="grid gap-3">
-          <AnimatePresence>
-            {filtered.map((customer) => (
-              <CustomerCard
-                key={customer.id}
-                customer={customer}
-                onEdit={setEditingCustomer}
-               onDelete={isOwner ? handleArchive : undefined}
-                onReceivePayment={setPaymentCustomer}
-                onViewLedger={handleViewLedger}
-              />
-            ))}
-          </AnimatePresence>
+        <div className="grid gap-4 md:grid-cols-[1fr_420px]">
+          <div className="grid gap-3">
+            <AnimatePresence>
+              {filtered.map((customer) => (
+                <CustomerCard
+                  key={customer.id}
+                  customer={customer}
+                  onSelect={setSelectedCustomer}
+                  onEdit={setEditingCustomer}
+                  onDelete={isOwner ? handleArchive : undefined}
+                  onReceivePayment={setPaymentCustomer}
+                  onViewLedger={handleViewLedger}
+                />
+              ))}
+            </AnimatePresence>
+          </div>
+
+          <div className="md:sticky md:top-20 h-fit">
+            <CustomerQuickViewPanel
+              customer={selectedCustomer}
+              onRefreshCustomerList={fetchCustomers}
+            />
+          </div>
         </div>
       )}
 
