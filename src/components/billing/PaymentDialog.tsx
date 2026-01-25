@@ -18,6 +18,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { CustomerSearchCombobox } from './CustomerSearchCombobox';
+import { PaymentBreakdown } from '@/components/billing/PaymentBreakdown';
 import type { PaymentMethod } from '@/hooks/useBilling';
 import type { Customer } from '@/hooks/useCustomers';
 
@@ -55,6 +56,7 @@ export function PaymentDialog({
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [amountPaid, setAmountPaid] = useState<string>('');
+  const [amountTouched, setAmountTouched] = useState(false);
 
   // Reset state when dialog opens
   useEffect(() => {
@@ -63,6 +65,7 @@ export function PaymentDialog({
       setSelectedCustomerId('');
       setSelectedCustomer(null);
       setAmountPaid(totalAmount.toString());
+      setAmountTouched(false);
     }
   }, [open, totalAmount]);
 
@@ -71,20 +74,34 @@ export function PaymentDialog({
     setSelectedCustomer(customer);
   };
 
-  // Calculate amounts
+  // Advance logic (applies only when a customer is selected)
+  const customerAdvance = Number(selectedCustomer?.advance_balance || 0);
+  const advanceUsed = selectedCustomer ? Math.min(customerAdvance, totalAmount) : 0;
+  const amountDueAfterAdvance = Math.max(0, totalAmount - advanceUsed);
+
+  // When selecting a customer with advance, auto-set amount paying to remaining payable (unless user already edited)
+  useEffect(() => {
+    if (!open) return;
+    if (selectedMethod === 'credit') return;
+    if (!selectedCustomer) return;
+    if (amountTouched) return;
+    setAmountPaid(amountDueAfterAdvance.toString());
+  }, [open, selectedCustomer?.id, selectedMethod, amountDueAfterAdvance, amountTouched]);
+
+  // Calculate amounts (based on payable after advance)
   const parsedPaid = parseFloat(amountPaid) || 0;
-  const pendingAmount = Math.max(0, totalAmount - parsedPaid);
+  const pendingAmount = Math.max(0, amountDueAfterAdvance - parsedPaid);
   const isCredit = selectedMethod === 'credit';
   const hasCredit = isCredit || pendingAmount > 0;
   const creditDisabled = hasCredit && !selectedCustomer;
 
-  const isOverpay = !isCredit && parsedPaid > totalAmount;
-  const overpayExcess = Math.max(0, parsedPaid - totalAmount);
+  const isOverpay = !isCredit && parsedPaid > amountDueAfterAdvance;
+  const overpayExcess = Math.max(0, parsedPaid - amountDueAfterAdvance);
   const overpayDisabled = isOverpay && !selectedCustomer;
 
   // For full credit, amount paid is 0
   const effectivePaid = isCredit ? 0 : parsedPaid;
-  const effectivePending = isCredit ? totalAmount : pendingAmount;
+  const effectivePending = isCredit ? amountDueAfterAdvance : pendingAmount;
 
   const handleConfirm = () => {
     if (creditDisabled || overpayDisabled) return;
@@ -104,9 +121,11 @@ export function PaymentDialog({
   const handleAmountChange = (value: string) => {
     const numValue = parseFloat(value) || 0;
 
+    setAmountTouched(true);
+
     // Walk-in (no customer): prevent overpay since we can't store advance against anyone.
-    if (!selectedCustomer && numValue > totalAmount) {
-      setAmountPaid(totalAmount.toString());
+    if (!selectedCustomer && numValue > amountDueAfterAdvance) {
+      setAmountPaid(amountDueAfterAdvance.toString());
       return;
     }
 
@@ -128,6 +147,13 @@ export function PaymentDialog({
           <div className="text-center py-2 bg-primary/10 rounded-lg">
             <p className="text-2xl font-bold text-primary">₹{totalAmount.toFixed(0)}</p>
           </div>
+
+          <PaymentBreakdown
+            billTotal={totalAmount}
+            customerAdvance={customerAdvance}
+            amountPaid={isCredit ? 0 : parsedPaid}
+            showCustomerAdvance={!!selectedCustomer}
+          />
 
           {/* Payment Methods - Compact Icons */}
           <div className="grid grid-cols-4 gap-1.5">
@@ -160,7 +186,7 @@ export function PaymentDialog({
                   value={amountPaid}
                   onChange={(e) => handleAmountChange(e.target.value)}
                   className="pl-6 h-9"
-                  max={!selectedCustomer ? totalAmount : undefined}
+                  max={!selectedCustomer ? amountDueAfterAdvance : undefined}
                 />
               </div>
               {pendingAmount > 0 && (
