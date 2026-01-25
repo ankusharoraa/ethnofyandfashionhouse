@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
   CreditCard,
@@ -6,7 +6,6 @@ import {
   Smartphone,
   Clock,
   Receipt,
-  CheckCircle2,
 } from 'lucide-react';
 import {
   Dialog,
@@ -56,7 +55,6 @@ export function PaymentDialog({
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [amountPaid, setAmountPaid] = useState<string>('');
-  const [isPartialPayment, setIsPartialPayment] = useState(false);
 
   // Reset state when dialog opens
   useEffect(() => {
@@ -65,7 +63,6 @@ export function PaymentDialog({
       setSelectedCustomerId('');
       setSelectedCustomer(null);
       setAmountPaid(totalAmount.toString());
-      setIsPartialPayment(false);
     }
   }, [open, totalAmount]);
 
@@ -81,12 +78,16 @@ export function PaymentDialog({
   const hasCredit = isCredit || pendingAmount > 0;
   const creditDisabled = hasCredit && !selectedCustomer;
 
+  const isOverpay = !isCredit && parsedPaid > totalAmount;
+  const overpayExcess = Math.max(0, parsedPaid - totalAmount);
+  const overpayDisabled = isOverpay && !selectedCustomer;
+
   // For full credit, amount paid is 0
   const effectivePaid = isCredit ? 0 : parsedPaid;
   const effectivePending = isCredit ? totalAmount : pendingAmount;
 
   const handleConfirm = () => {
-    if (creditDisabled) return;
+    if (creditDisabled || overpayDisabled) return;
 
     // Determine payment method - if partial payment, still use selected method but pass amount
     const method = isCredit ? 'credit' : selectedMethod;
@@ -101,9 +102,15 @@ export function PaymentDialog({
   };
 
   const handleAmountChange = (value: string) => {
-    setAmountPaid(value);
     const numValue = parseFloat(value) || 0;
-    setIsPartialPayment(numValue > 0 && numValue < totalAmount);
+
+    // Walk-in (no customer): prevent overpay since we can't store advance against anyone.
+    if (!selectedCustomer && numValue > totalAmount) {
+      setAmountPaid(totalAmount.toString());
+      return;
+    }
+
+    setAmountPaid(value);
   };
 
   return (
@@ -153,11 +160,18 @@ export function PaymentDialog({
                   value={amountPaid}
                   onChange={(e) => handleAmountChange(e.target.value)}
                   className="pl-6 h-9"
+                  max={!selectedCustomer ? totalAmount : undefined}
                 />
               </div>
               {pendingAmount > 0 && (
                 <p className="text-xs text-orange-600 mt-1">
                   ₹{pendingAmount.toFixed(0)} will be added to credit
+                </p>
+              )}
+
+              {isOverpay && selectedCustomer && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  ₹{overpayExcess.toFixed(0)} will be added to advance balance
                 </p>
               )}
             </div>
@@ -203,6 +217,12 @@ export function PaymentDialog({
               Credit requires selecting a customer
             </p>
           )}
+
+          {overpayDisabled && (
+            <p className="text-xs text-destructive">
+              Overpayment requires selecting a customer
+            </p>
+          )}
         </div>
 
         <DialogFooter className="pt-2 gap-2">
@@ -212,7 +232,7 @@ export function PaymentDialog({
           <Button
             size="sm"
             onClick={handleConfirm}
-            disabled={isProcessing || creditDisabled}
+            disabled={isProcessing || creditDisabled || overpayDisabled}
           >
             {isProcessing ? 'Processing...' : 'Confirm'}
           </Button>
