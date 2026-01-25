@@ -279,11 +279,14 @@ export function useBilling() {
   // Complete sales invoice (atomically deducts stock)
   const completeInvoice = async (
     invoiceId: string,
-    paymentMethod: PaymentMethod = 'cash'
+    paymentMethod: PaymentMethod = 'cash',
+    customerId?: string
   ): Promise<{ success: boolean; error?: string }> => {
     const { data, error } = await supabase.rpc('complete_invoice', {
       p_invoice_id: invoiceId,
       p_payment_method: paymentMethod,
+      p_amount_paid: paymentMethod === 'credit' ? 0 : null,
+      p_customer_id: customerId || null,
     });
 
     if (error) {
@@ -453,6 +456,16 @@ export function useBilling() {
       return null;
     }
 
+    // Credit requires a customer
+    if (paymentMethod === 'credit' && !customerId) {
+      toast({
+        title: 'Customer Required',
+        description: 'Credit payment requires selecting an existing customer',
+        variant: 'destructive',
+      });
+      return null;
+    }
+
     // Validate stock availability
     for (const item of cartItems) {
       if (!item.sku) continue;
@@ -475,11 +488,11 @@ export function useBilling() {
     }
 
     // Create draft invoice
-    const invoice = await createDraftInvoice('sale', customerName, customerPhone,customerId);
+    const invoice = await createDraftInvoice('sale', customerName, customerPhone, undefined, undefined, customerId);
     if (!invoice) return null;
 
     // Complete the invoice (atomic stock update)
-    const result = await completeInvoice(invoice.id, paymentMethod);
+    const result = await completeInvoice(invoice.id, paymentMethod, customerId);
     
     if (!result.success) {
       return null;

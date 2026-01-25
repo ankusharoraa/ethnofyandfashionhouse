@@ -35,7 +35,7 @@ interface PaymentDialogProps {
   isProcessing: boolean;
 }
 
-const paymentMethods = [
+const paymentMethods: { method: PaymentMethod; label: string; icon: typeof Banknote; color: string }[] = [
   { method: 'cash', label: 'Cash', icon: Banknote, color: 'text-green-600' },
   { method: 'upi', label: 'UPI', icon: Smartphone, color: 'text-purple-600' },
   { method: 'card', label: 'Card', icon: CreditCard, color: 'text-blue-600' },
@@ -115,11 +115,23 @@ export function PaymentDialog({
 
           {/* Credit info */}
           {isCredit && selectedCustomer && (
-            <div className="text-sm bg-orange-50 border border-orange-200 rounded-md p-3">
+            <div className="text-sm bg-orange-50 border border-orange-200 rounded-md p-3 space-y-2">
               <div className="flex justify-between">
-                <span>Current Pending</span>
+                <span>Current Outstanding</span>
                 <span className="font-semibold">
                   ₹{selectedCustomer.outstanding_balance.toFixed(2)}
+                </span>
+              </div>
+              <div className="flex justify-between text-orange-700">
+                <span>New Pending (This Bill)</span>
+                <span className="font-semibold">
+                  ₹{totalAmount.toFixed(2)}
+                </span>
+              </div>
+              <div className="flex justify-between pt-2 border-t border-orange-300 font-bold text-orange-800">
+                <span>Total After This Bill</span>
+                <span>
+                  ₹{(selectedCustomer.outstanding_balance + totalAmount).toFixed(2)}
                 </span>
               </div>
             </div>

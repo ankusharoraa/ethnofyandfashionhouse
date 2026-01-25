@@ -44,6 +44,57 @@ export type Database = {
         }
         Relationships: []
       }
+      customer_payments: {
+        Row: {
+          amount: number
+          created_at: string
+          created_by: string | null
+          customer_id: string
+          id: string
+          invoice_id: string | null
+          notes: string | null
+          payment_date: string
+          payment_method: Database["public"]["Enums"]["payment_method"]
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          created_by?: string | null
+          customer_id: string
+          id?: string
+          invoice_id?: string | null
+          notes?: string | null
+          payment_date?: string
+          payment_method: Database["public"]["Enums"]["payment_method"]
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          created_by?: string | null
+          customer_id?: string
+          id?: string
+          invoice_id?: string | null
+          notes?: string | null
+          payment_date?: string
+          payment_method?: Database["public"]["Enums"]["payment_method"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_payments_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_payments_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       customers: {
         Row: {
           address: string | null
@@ -612,13 +663,23 @@ export type Database = {
     Functions: {
       cancel_invoice: { Args: { p_invoice_id: string }; Returns: Json }
       cancel_purchase_invoice: { Args: { p_invoice_id: string }; Returns: Json }
-      complete_invoice: {
-        Args: {
-          p_invoice_id: string
-          p_payment_method?: Database["public"]["Enums"]["payment_method"]
-        }
-        Returns: Json
-      }
+      complete_invoice:
+        | {
+            Args: {
+              p_invoice_id: string
+              p_payment_method?: Database["public"]["Enums"]["payment_method"]
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_amount_paid?: number
+              p_customer_id?: string
+              p_invoice_id: string
+              p_payment_method?: Database["public"]["Enums"]["payment_method"]
+            }
+            Returns: Json
+          }
       complete_purchase_invoice: {
         Args: {
           p_amount_paid?: number
@@ -637,6 +698,15 @@ export type Database = {
       }
       is_authenticated_user: { Args: never; Returns: boolean }
       is_owner: { Args: never; Returns: boolean }
+      record_customer_payment: {
+        Args: {
+          p_amount: number
+          p_customer_id: string
+          p_notes?: string
+          p_payment_method?: Database["public"]["Enums"]["payment_method"]
+        }
+        Returns: Json
+      }
       record_supplier_payment: {
         Args: {
           p_amount: number
