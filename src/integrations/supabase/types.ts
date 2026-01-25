@@ -677,6 +677,53 @@ export type Database = {
           },
         ]
       }
+      supplier_ledger: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          credit_amount: number
+          debit_amount: number
+          entry_type: Database["public"]["Enums"]["supplier_ledger_entry_type"]
+          id: string
+          reference_id: string | null
+          reference_label: string | null
+          running_balance: number
+          supplier_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          credit_amount?: number
+          debit_amount?: number
+          entry_type: Database["public"]["Enums"]["supplier_ledger_entry_type"]
+          id?: string
+          reference_id?: string | null
+          reference_label?: string | null
+          running_balance?: number
+          supplier_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          credit_amount?: number
+          debit_amount?: number
+          entry_type?: Database["public"]["Enums"]["supplier_ledger_entry_type"]
+          id?: string
+          reference_id?: string | null
+          reference_label?: string | null
+          running_balance?: number
+          supplier_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "supplier_ledger_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       supplier_payments: {
         Row: {
           amount: number
@@ -810,6 +857,18 @@ export type Database = {
         }
         Returns: string
       }
+      append_supplier_ledger: {
+        Args: {
+          p_created_at?: string
+          p_credit: number
+          p_debit: number
+          p_entry_type: Database["public"]["Enums"]["supplier_ledger_entry_type"]
+          p_reference_id: string
+          p_reference_label: string
+          p_supplier_id: string
+        }
+        Returns: string
+      }
       assert_customer_active: {
         Args: { p_customer_id: string }
         Returns: undefined
@@ -846,6 +905,7 @@ export type Database = {
         Returns: Json
       }
       generate_invoice_number: { Args: never; Returns: string }
+      generate_unique_barcode: { Args: { p_prefix?: string }; Returns: string }
       get_customer_running_balance: {
         Args: { p_customer_id: string }
         Returns: number
@@ -867,6 +927,10 @@ export type Database = {
           sku_name: string
           unit_price: number
         }[]
+      }
+      get_supplier_running_balance: {
+        Args: { p_supplier_id: string }
+        Returns: number
       }
       has_permission: {
         Args: {
@@ -937,6 +1001,7 @@ export type Database = {
         | "view_profit"
         | "manage_employees"
       price_type: "per_metre" | "fixed"
+      supplier_ledger_entry_type: "purchase" | "payment" | "adjustment"
       sync_status: "synced" | "pending" | "offline"
       user_role: "owner" | "staff"
     }
@@ -1082,6 +1147,7 @@ export const Constants = {
         "manage_employees",
       ],
       price_type: ["per_metre", "fixed"],
+      supplier_ledger_entry_type: ["purchase", "payment", "adjustment"],
       sync_status: ["synced", "pending", "offline"],
       user_role: ["owner", "staff"],
     },
