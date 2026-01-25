@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { format } from 'date-fns';
-import { ArrowLeft, FileText, ArrowUpRight, ArrowDownLeft, Undo2, Loader2 } from 'lucide-react';
+import { ArrowLeft, FileText, ArrowUpRight, ArrowDownLeft, Undo2, Loader2, Wallet } from 'lucide-react';
 
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Card } from '@/components/ui/card';
@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { supabase } from '@/integrations/supabase/client';
+import { CustomerPaymentDialog } from '@/components/customers/CustomerPaymentDialog';
 
 type LedgerEntryType = 'sale' | 'return' | 'payment';
 
@@ -65,6 +66,8 @@ export default function CustomerLedger() {
   const [paymentDetails, setPaymentDetails] = useState<PaymentRow | null>(null);
   const [isPaymentLoading, setIsPaymentLoading] = useState(false);
 
+  const [showReceivePayment, setShowReceivePayment] = useState(false);
+
   const paymentId = searchParams.get('paymentId');
 
   useEffect(() => {
@@ -110,6 +113,11 @@ export default function CustomerLedger() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handlePaymentSuccess = async () => {
+    // Refresh balances + ledger
+    await loadInitial();
   };
 
   const fetchLedgerPage = async (pageIndex: number) => {
@@ -238,7 +246,20 @@ export default function CustomerLedger() {
           )}
         </div>
 
-        {headerBadges}
+        <div className="flex items-center gap-2">
+          {headerBadges}
+          {customer && (
+            <Button
+              variant="outline"
+              onClick={() => setShowReceivePayment(true)}
+              disabled={customer.is_deleted}
+              title={customer.is_deleted ? 'Customer is archived' : 'Receive payment'}
+            >
+              <Wallet className="w-4 h-4 mr-2" />
+              Receive Payment
+            </Button>
+          )}
+        </div>
       </div>
 
       {isLoading ? (
@@ -357,6 +378,15 @@ export default function CustomerLedger() {
           )}
         </DialogContent>
       </Dialog>
+
+      {customer && (
+        <CustomerPaymentDialog
+          open={showReceivePayment}
+          onClose={() => setShowReceivePayment(false)}
+          customer={customer}
+          onSuccess={handlePaymentSuccess}
+        />
+      )}
     </AppLayout>
   );
 }
