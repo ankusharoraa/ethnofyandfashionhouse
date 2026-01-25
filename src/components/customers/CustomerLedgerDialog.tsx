@@ -20,7 +20,11 @@ interface LedgerEntry {
   reference: string;
   debit: number;
   credit: number;
-  balance: number;
+  balance: number; // outstanding due running balance (never negative)
+  advance_balance: number; // running advance balance
+  payment_received?: number;
+  applied_to_due?: number;
+  advance_created?: number;
 }
 
 interface CustomerLedgerDialogProps {
@@ -37,6 +41,7 @@ export function CustomerLedgerDialog({
   const [isLoading, setIsLoading] = useState(true);
   const [invoices, setInvoices] = useState<any[]>([]);
   const [payments, setPayments] = useState<any[]>([]);
+  const [balances, setBalances] = useState<{ outstanding: number; advance: number } | null>(null);
 
   useEffect(() => {
     if (open && customer) {
@@ -47,6 +52,22 @@ export function CustomerLedgerDialog({
   const fetchLedgerData = async () => {
     setIsLoading(true);
     try {
+      // Fetch latest balances (customer prop may not include advance_balance)
+      const { data: customerRow, error: customerErr } = await supabase
+        .from('customers')
+        .select('outstanding_balance, advance_balance')
+        .eq('id', customer.id)
+        .maybeSingle();
+
+      if (customerErr) {
+        console.error('Error fetching customer balances:', customerErr);
+      }
+
+      setBalances({
+        outstanding: Number(customerRow?.outstanding_balance ?? customer.outstanding_balance ?? 0),
+        advance: Number(customerRow?.advance_balance ?? 0),
+      });
+
       // Fetch all invoices for this customer (sales and returns)
       const { data: invoiceData } = await supabase
         .from('invoices')
@@ -85,6 +106,7 @@ export function CustomerLedgerDialog({
           debit: inv.pending_amount || 0, // Only pending amount is "owed"
           credit: 0,
           balance: 0,
+          advance_balance: 0,
         });
       } else if (inv.invoice_type === 'return') {
         // Returns reduce outstanding balance
@@ -96,6 +118,7 @@ export function CustomerLedgerDialog({
           debit: 0,
           credit: Math.abs(inv.total_amount), // Return amounts are stored as negative
           balance: 0,
+          advance_balance: 0,
         });
       }
     });
@@ -110,17 +133,42 @@ export function CustomerLedgerDialog({
         debit: 0,
         credit: pmt.amount,
         balance: 0,
+        advance_balance: 0,
+        payment_received: pmt.amount,
       });
     });
 
     // Sort by date
     entries.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-    // Calculate running balance
-    let runningBalance = 0;
+    // Calculate running balances:
+    // - balance: outstanding due (clamped to >= 0)
+    // - advance_balance: customer advance/credit held by shop (>= 0)
+    let due = 0;
+    let advance = 0;
     entries.forEach((entry) => {
-      runningBalance += entry.debit - entry.credit;
-      entry.balance = runningBalance;
+      if (entry.type === 'sale') {
+        // Pending amount increases due
+        due += entry.debit;
+      } else if (entry.type === 'return') {
+        const credit = entry.credit;
+        const applied = Math.min(credit, due);
+        const toAdvance = Math.max(0, credit - applied);
+        due -= applied;
+        advance += toAdvance;
+      } else if (entry.type === 'payment') {
+        const paid = entry.credit;
+        const applied = Math.min(paid, due);
+        const toAdvance = Math.max(0, paid - applied);
+        due -= applied;
+        advance += toAdvance;
+
+        entry.applied_to_due = applied;
+        entry.advance_created = toAdvance;
+      }
+
+      entry.balance = Math.max(0, due);
+      entry.advance_balance = Math.max(0, advance);
     });
 
     return entries;
@@ -143,11 +191,11 @@ export function CustomerLedgerDialog({
   const getEntryStyle = (type: LedgerEntry['type']) => {
     switch (type) {
       case 'sale':
-        return 'bg-orange-100 text-orange-600 dark:bg-orange-900/30';
+        return 'bg-muted text-foreground';
       case 'return':
-        return 'bg-purple-100 text-purple-600 dark:bg-purple-900/30';
+        return 'bg-muted text-foreground';
       case 'payment':
-        return 'bg-green-100 text-green-600 dark:bg-green-900/30';
+        return 'bg-muted text-foreground';
     }
   };
 
@@ -171,7 +219,7 @@ export function CustomerLedgerDialog({
             Customer Ledger
           </DialogTitle>
           <DialogDescription>
-            {customer.name} • Outstanding: ₹{customer.outstanding_balance.toFixed(2)}
+            {customer.name} • Outstanding: ₹{(balances?.outstanding ?? customer.outstanding_balance).toFixed(2)} • Advance Balance: ₹{(balances?.advance ?? 0).toFixed(2)}
           </DialogDescription>
         </DialogHeader>
 
@@ -215,13 +263,34 @@ export function CustomerLedgerDialog({
                   {/* Amount */}
                   <div className="text-right">
                     {entry.debit > 0 && (
-                      <p className="text-sm font-medium text-orange-600">+₹{entry.debit.toFixed(0)}</p>
+                      <p className="text-sm font-medium">+₹{entry.debit.toFixed(0)}</p>
                     )}
                     {entry.credit > 0 && (
-                      <p className="text-sm font-medium text-green-600">-₹{entry.credit.toFixed(0)}</p>
+                      <p className="text-sm font-medium">-₹{entry.credit.toFixed(0)}</p>
                     )}
+
+                    {/* Payment split */}
+                    {entry.type === 'payment' && (
+                      <div className="mt-1 space-y-0.5 text-xs text-muted-foreground">
+                        <div className="flex justify-between gap-2">
+                          <span>Payment Received</span>
+                          <span>₹{(entry.payment_received ?? entry.credit).toFixed(0)}</span>
+                        </div>
+                        <div className="flex justify-between gap-2">
+                          <span>Applied to Due</span>
+                          <span>₹{(entry.applied_to_due ?? 0).toFixed(0)}</span>
+                        </div>
+                        {(entry.advance_created ?? 0) > 0 && (
+                          <div className="flex justify-between gap-2">
+                            <span>Advance Created</span>
+                            <span>₹{(entry.advance_created ?? 0).toFixed(0)}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                     <p className="text-xs text-muted-foreground">
-                      Bal: ₹{entry.balance.toFixed(0)}
+                      Due: ₹{entry.balance.toFixed(0)} • Adv: ₹{entry.advance_balance.toFixed(0)}
                     </p>
                   </div>
                 </div>
@@ -232,21 +301,19 @@ export function CustomerLedgerDialog({
             <div className="mt-4 pt-4 border-t border-border">
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Total Debits (Sales)</span>
-                <span className="font-medium text-orange-600">
-                  ₹{totalDebits.toFixed(0)}
-                </span>
+                <span className="font-medium">₹{totalDebits.toFixed(0)}</span>
               </div>
               <div className="flex justify-between text-sm mt-1">
                 <span className="text-muted-foreground">Total Credits (Returns + Payments)</span>
-                <span className="font-medium text-green-600">
-                  ₹{totalCredits.toFixed(0)}
-                </span>
+                <span className="font-medium">₹{totalCredits.toFixed(0)}</span>
               </div>
               <div className="flex justify-between text-sm mt-2 pt-2 border-t border-border font-semibold">
                 <span>Net Due</span>
-                <span className={customer.outstanding_balance > 0 ? 'text-orange-600' : 'text-green-600'}>
-                  ₹{customer.outstanding_balance.toFixed(0)}
-                </span>
+                <span>₹{(balances?.outstanding ?? customer.outstanding_balance).toFixed(0)}</span>
+              </div>
+              <div className="flex justify-between text-sm mt-1 font-semibold">
+                <span>Advance Balance</span>
+                <span>₹{(balances?.advance ?? 0).toFixed(0)}</span>
               </div>
             </div>
           </ScrollArea>
