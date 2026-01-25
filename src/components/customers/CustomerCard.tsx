@@ -16,6 +16,7 @@ interface CustomerCardProps {
 
 export function CustomerCard({ customer, onSelect, onEdit, onDelete, onReceivePayment, onViewLedger }: CustomerCardProps) {
   const hasBalance = customer.outstanding_balance > 0;
+  const hasAdvance = Number(customer.advance_balance || 0) > 0;
 
   return (
     <motion.div
@@ -64,9 +65,14 @@ export function CustomerCard({ customer, onSelect, onEdit, onDelete, onReceivePa
                 <IndianRupee className="w-3 h-3 mr-1" />
                 Total: ₹{customer.total_purchases.toFixed(0)}
               </Badge>
+              {hasAdvance && (
+                <Badge variant="secondary" className="text-xs">
+                  Advance ₹{Number(customer.advance_balance || 0).toFixed(0)}
+                </Badge>
+              )}
               {hasBalance && (
                 <Badge variant="destructive" className="text-xs">
-                  Due: ₹{customer.outstanding_balance.toFixed(0)}
+                  Due ₹{customer.outstanding_balance.toFixed(0)}
                 </Badge>
               )}
             </div>

@@ -178,8 +178,12 @@ export default function CustomerLedger() {
     if (!customer) return null;
     return (
       <div className="flex flex-wrap gap-2">
-        <Badge variant="outline">Due: ₹{Number(customer.outstanding_balance || 0).toFixed(0)}</Badge>
-        <Badge variant="outline">Advance: ₹{Number(customer.advance_balance || 0).toFixed(0)}</Badge>
+        {Number(customer.advance_balance || 0) > 0 && (
+          <Badge variant="secondary">Advance ₹{Number(customer.advance_balance || 0).toFixed(0)}</Badge>
+        )}
+        {Number(customer.outstanding_balance || 0) > 0 && (
+          <Badge variant="destructive">Due ₹{Number(customer.outstanding_balance || 0).toFixed(0)}</Badge>
+        )}
         {customer.is_deleted && <Badge variant="destructive">Archived</Badge>}
       </div>
     );

@@ -139,8 +139,12 @@ export function CustomerQuickViewPanel({ customer, onRefreshCustomerList }: Cust
             {customer.city ? ` • ${customer.city}` : ''}
           </div>
           <div className="flex flex-wrap gap-2 mt-2">
-            <Badge variant="outline">Due: ₹{Number(customer.outstanding_balance || 0).toFixed(0)}</Badge>
-            <Badge variant="outline">Advance: ₹{Number(customer.advance_balance || 0).toFixed(0)}</Badge>
+            {Number(customer.advance_balance || 0) > 0 && (
+              <Badge variant="secondary">Advance ₹{Number(customer.advance_balance || 0).toFixed(0)}</Badge>
+            )}
+            {Number(customer.outstanding_balance || 0) > 0 && (
+              <Badge variant="destructive">Due ₹{Number(customer.outstanding_balance || 0).toFixed(0)}</Badge>
+            )}
           </div>
         </div>
 
