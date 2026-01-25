@@ -94,7 +94,8 @@ export default function Billing() {
     paymentMethod: PaymentMethod,
     customerName?: string,
     customerPhone?: string,
-    customerId?: string
+    customerId?: string,
+    amountPaid?: number
   ) => {
     if (!hasPermission('sales_bill')) {
       toast({
@@ -107,7 +108,7 @@ export default function Billing() {
 
     setIsProcessing(true);
     try {
-      const result = await createAndCompleteBill(customerName, customerPhone, paymentMethod, customerId);
+      const result = await createAndCompleteBill(customerName, customerPhone, paymentMethod, customerId, amountPaid);
       if (result) {
         setShowPayment(false);
         toast({

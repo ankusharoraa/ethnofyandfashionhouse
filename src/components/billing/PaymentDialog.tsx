@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import {
   CreditCard,
@@ -11,7 +11,6 @@ import {
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -32,16 +31,17 @@ interface PaymentDialogProps {
     paymentMethod: PaymentMethod,
     customerName?: string,
     customerPhone?: string,
-    customerId?: string
+    customerId?: string,
+    amountPaid?: number
   ) => void;
   isProcessing: boolean;
 }
 
-const paymentMethods: { method: PaymentMethod; label: string; icon: typeof Banknote; color: string }[] = [
-  { method: 'cash', label: 'Cash', icon: Banknote, color: 'text-green-600' },
-  { method: 'upi', label: 'UPI', icon: Smartphone, color: 'text-purple-600' },
-  { method: 'card', label: 'Card', icon: CreditCard, color: 'text-blue-600' },
-  { method: 'credit', label: 'Credit', icon: Clock, color: 'text-orange-600' },
+const paymentMethods: { method: PaymentMethod; label: string; icon: typeof Banknote }[] = [
+  { method: 'cash', label: 'Cash', icon: Banknote },
+  { method: 'upi', label: 'UPI', icon: Smartphone },
+  { method: 'card', label: 'Card', icon: CreditCard },
+  { method: 'credit', label: 'Credit', icon: Clock },
 ];
 
 export function PaymentDialog({
@@ -55,8 +55,8 @@ export function PaymentDialog({
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod>('cash');
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
-  const [customerName, setCustomerName] = useState('');
-  const [customerPhone, setCustomerPhone] = useState('');
+  const [amountPaid, setAmountPaid] = useState<string>('');
+  const [isPartialPayment, setIsPartialPayment] = useState(false);
 
   // Reset state when dialog opens
   useEffect(() => {
@@ -64,152 +64,157 @@ export function PaymentDialog({
       setSelectedMethod('cash');
       setSelectedCustomerId('');
       setSelectedCustomer(null);
-      setCustomerName('');
-      setCustomerPhone('');
+      setAmountPaid(totalAmount.toString());
+      setIsPartialPayment(false);
     }
-  }, [open]);
+  }, [open, totalAmount]);
 
   const handleCustomerSelect = (customerId: string, customer: Customer | null) => {
     setSelectedCustomerId(customerId);
     setSelectedCustomer(customer);
-    if (customer) {
-      setCustomerName(customer.name);
-      setCustomerPhone(customer.phone || '');
-    } else {
-      setCustomerName('');
-      setCustomerPhone('');
-    }
   };
 
+  // Calculate amounts
+  const parsedPaid = parseFloat(amountPaid) || 0;
+  const pendingAmount = Math.max(0, totalAmount - parsedPaid);
   const isCredit = selectedMethod === 'credit';
-  const creditDisabled = isCredit && !selectedCustomer;
+  const hasCredit = isCredit || pendingAmount > 0;
+  const creditDisabled = hasCredit && !selectedCustomer;
+
+  // For full credit, amount paid is 0
+  const effectivePaid = isCredit ? 0 : parsedPaid;
+  const effectivePending = isCredit ? totalAmount : pendingAmount;
 
   const handleConfirm = () => {
     if (creditDisabled) return;
 
+    // Determine payment method - if partial payment, still use selected method but pass amount
+    const method = isCredit ? 'credit' : selectedMethod;
+    
     onConfirm(
-      selectedMethod,
-      customerName || selectedCustomer?.name,
-      customerPhone || selectedCustomer?.phone || undefined,
-      selectedCustomer?.id
+      method,
+      selectedCustomer?.name,
+      selectedCustomer?.phone || undefined,
+      selectedCustomer?.id,
+      isCredit ? 0 : parsedPaid
     );
+  };
+
+  const handleAmountChange = (value: string) => {
+    setAmountPaid(value);
+    const numValue = parseFloat(value) || 0;
+    setIsPartialPayment(numValue > 0 && numValue < totalAmount);
   };
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Receipt className="w-5 h-5 text-primary" />
-            Complete Payment
+      <DialogContent className="max-w-[360px] p-4">
+        <DialogHeader className="pb-2">
+          <DialogTitle className="flex items-center gap-2 text-base">
+            <Receipt className="w-4 h-4 text-primary" />
+            Checkout
           </DialogTitle>
-          <DialogDescription>
-            Select payment method and customer details
-          </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-6">
-          {/* Total */}
-          <div className="text-center py-4 bg-primary/10 rounded-xl">
-            <p className="text-sm text-muted-foreground">Total Amount</p>
-            <p className="text-3xl font-bold text-primary">
-              ₹{totalAmount.toFixed(2)}
-            </p>
+        <div className="space-y-3">
+          {/* Total - Compact */}
+          <div className="text-center py-2 bg-primary/10 rounded-lg">
+            <p className="text-2xl font-bold text-primary">₹{totalAmount.toFixed(0)}</p>
           </div>
 
-          {/* Customer Search Combobox */}
-          <div className="space-y-2">
-            <Label>Select Customer</Label>
-            <CustomerSearchCombobox
-              customers={customers}
-              selectedCustomerId={selectedCustomerId}
-              onSelect={handleCustomerSelect}
-            />
-          </div>
-
-          {/* Credit info */}
-          {isCredit && selectedCustomer && (
-            <div className="text-sm bg-orange-50 border border-orange-200 rounded-md p-3 space-y-2 dark:bg-orange-950/20 dark:border-orange-800">
-              <div className="flex justify-between">
-                <span>Current Outstanding</span>
-                <span className="font-semibold">
-                  ₹{selectedCustomer.outstanding_balance.toFixed(2)}
-                </span>
-              </div>
-              <div className="flex justify-between text-orange-700 dark:text-orange-400">
-                <span>New Pending (This Bill)</span>
-                <span className="font-semibold">
-                  ₹{totalAmount.toFixed(2)}
-                </span>
-              </div>
-              <div className="flex justify-between pt-2 border-t border-orange-300 dark:border-orange-700 font-bold text-orange-800 dark:text-orange-300">
-                <span>Total After This Bill</span>
-                <span>
-                  ₹{(selectedCustomer.outstanding_balance + totalAmount).toFixed(2)}
-                </span>
-              </div>
-            </div>
-          )}
-
-          {/* Customer fields */}
-          <div className="space-y-3">
-            <div>
-              <Label>Customer Name</Label>
-              <Input
-                value={customerName}
-                onChange={(e) => setCustomerName(e.target.value)}
-                placeholder="Enter name or select above"
-              />
-            </div>
-            <div>
-              <Label>Phone</Label>
-              <Input
-                value={customerPhone}
-                onChange={(e) => setCustomerPhone(e.target.value)}
-                placeholder="Enter phone number"
-              />
-            </div>
-          </div>
-
-          {/* Payment Methods */}
-          <div className="grid grid-cols-2 gap-3">
-            {paymentMethods.map(({ method, label, icon: Icon, color }) => (
+          {/* Payment Methods - Compact Icons */}
+          <div className="grid grid-cols-4 gap-1.5">
+            {paymentMethods.map(({ method, label, icon: Icon }) => (
               <motion.button
                 key={method}
                 type="button"
                 onClick={() => setSelectedMethod(method)}
-                className={`flex items-center gap-3 p-4 rounded-xl border-2 transition-colors ${
+                className={`flex flex-col items-center gap-1 p-2 rounded-lg border transition-colors text-xs ${
                   selectedMethod === method
-                    ? 'border-primary bg-primary/5'
+                    ? 'border-primary bg-primary/10 text-primary'
                     : 'border-border hover:border-primary/50'
                 }`}
-                whileTap={{ scale: 0.98 }}
+                whileTap={{ scale: 0.95 }}
               >
-                <Icon className={`w-5 h-5 ${color}`} />
-                {label}
-                {selectedMethod === method && (
-                  <CheckCircle2 className="w-4 h-4 ml-auto text-primary" />
-                )}
+                <Icon className="w-4 h-4" />
+                <span className="text-[10px]">{label}</span>
               </motion.button>
             ))}
           </div>
 
+          {/* Amount Paid - Only for non-credit */}
+          {!isCredit && (
+            <div>
+              <Label className="text-xs">Amount Paying</Label>
+              <div className="relative mt-1">
+                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">₹</span>
+                <Input
+                  type="number"
+                  value={amountPaid}
+                  onChange={(e) => handleAmountChange(e.target.value)}
+                  className="pl-6 h-9"
+                />
+              </div>
+              {pendingAmount > 0 && (
+                <p className="text-xs text-orange-600 mt-1">
+                  ₹{pendingAmount.toFixed(0)} will be added to credit
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Customer - Required for credit/partial */}
+          {(hasCredit || true) && (
+            <div>
+              <Label className="text-xs">
+                Customer {hasCredit && <span className="text-destructive">*</span>}
+              </Label>
+              <div className="mt-1">
+                <CustomerSearchCombobox
+                  customers={customers}
+                  selectedCustomerId={selectedCustomerId}
+                  onSelect={handleCustomerSelect}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Credit Summary - Compact */}
+          {hasCredit && selectedCustomer && (
+            <div className="text-xs bg-orange-50 border border-orange-200 rounded-md p-2 space-y-1 dark:bg-orange-950/20 dark:border-orange-800">
+              <div className="flex justify-between">
+                <span>Current Due</span>
+                <span>₹{selectedCustomer.outstanding_balance.toFixed(0)}</span>
+              </div>
+              <div className="flex justify-between text-orange-700 dark:text-orange-400">
+                <span>+ This Bill</span>
+                <span>₹{effectivePending.toFixed(0)}</span>
+              </div>
+              <div className="flex justify-between pt-1 border-t border-orange-300 dark:border-orange-700 font-semibold">
+                <span>New Balance</span>
+                <span>₹{(selectedCustomer.outstanding_balance + effectivePending).toFixed(0)}</span>
+              </div>
+            </div>
+          )}
+
+          {/* Error Message */}
           {creditDisabled && (
-            <p className="text-sm text-destructive">
-              Credit is allowed only for existing customers. Please select a customer above.
+            <p className="text-xs text-destructive">
+              Credit requires selecting a customer
             </p>
           )}
         </div>
 
-        <DialogFooter className="gap-2 sm:gap-0">
-          <Button variant="outline" onClick={onClose} disabled={isProcessing}>
+        <DialogFooter className="pt-2 gap-2">
+          <Button variant="outline" size="sm" onClick={onClose} disabled={isProcessing}>
             Cancel
           </Button>
           <Button
+            size="sm"
             onClick={handleConfirm}
             disabled={isProcessing || creditDisabled}
           >
-            {isProcessing ? 'Processing...' : 'Confirm Payment'}
+            {isProcessing ? 'Processing...' : 'Confirm'}
           </Button>
         </DialogFooter>
       </DialogContent>

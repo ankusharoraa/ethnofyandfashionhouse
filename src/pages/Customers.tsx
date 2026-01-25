@@ -4,6 +4,8 @@ import { Search, Plus, Users } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { CustomerCard } from '@/components/customers/CustomerCard';
 import { CustomerForm } from '@/components/customers/CustomerForm';
+import { CustomerPaymentDialog } from '@/components/customers/CustomerPaymentDialog';
+import { CustomerLedgerDialog } from '@/components/customers/CustomerLedgerDialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
@@ -12,9 +14,11 @@ import { useAuth } from '@/hooks/useAuth';
 
 export default function Customers() {
   const { isOwner } = useAuth();
-  const { customers, isLoading, createCustomer, updateCustomer, deleteCustomer } = useCustomers();
+  const { customers, isLoading, createCustomer, updateCustomer, deleteCustomer, fetchCustomers } = useCustomers();
   const [showForm, setShowForm] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
+  const [paymentCustomer, setPaymentCustomer] = useState<Customer | null>(null);
+  const [ledgerCustomer, setLedgerCustomer] = useState<Customer | null>(null);
   const [search, setSearch] = useState('');
 
   const filtered = useMemo(() => {
@@ -32,6 +36,10 @@ export default function Customers() {
     if (confirm(`Delete customer "${customer.name}"? This cannot be undone.`)) {
       await deleteCustomer(customer.id);
     }
+  };
+
+  const handlePaymentSuccess = () => {
+    fetchCustomers(); // Refresh customer list to update balances
   };
 
   return (
@@ -83,6 +91,8 @@ export default function Customers() {
                 customer={customer}
                 onEdit={setEditingCustomer}
                 onDelete={isOwner ? handleDelete : undefined}
+                onReceivePayment={setPaymentCustomer}
+                onViewLedger={setLedgerCustomer}
               />
             ))}
           </AnimatePresence>
@@ -103,6 +113,25 @@ export default function Customers() {
         }
         customer={editingCustomer}
       />
+
+      {/* Payment Dialog */}
+      {paymentCustomer && (
+        <CustomerPaymentDialog
+          open={!!paymentCustomer}
+          onClose={() => setPaymentCustomer(null)}
+          customer={paymentCustomer}
+          onSuccess={handlePaymentSuccess}
+        />
+      )}
+
+      {/* Ledger Dialog */}
+      {ledgerCustomer && (
+        <CustomerLedgerDialog
+          open={!!ledgerCustomer}
+          onClose={() => setLedgerCustomer(null)}
+          customer={ledgerCustomer}
+        />
+      )}
     </AppLayout>
   );
 }
