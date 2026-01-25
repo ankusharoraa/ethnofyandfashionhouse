@@ -141,8 +141,9 @@ export function useBilling() {
       
       // Add new item
       const unitPrice = sku.price_type === 'per_metre' ? (sku.rate || 0) : (sku.fixed_price || 0);
-      const qty = quantity || (sku.price_type === 'fixed' ? 1 : 0);
-      const len = lengthMetres || (sku.price_type === 'per_metre' ? 1 : 0);
+      // Default to a sensible non-zero quantity/length so both sales + purchase flows work smoothly.
+      const qty = quantity ?? (sku.price_type === 'fixed' ? 1 : 0);
+      const len = lengthMetres ?? (sku.price_type === 'per_metre' ? 1 : 0);
       
       const newItem: InvoiceItem = {
         sku_id: sku.id,

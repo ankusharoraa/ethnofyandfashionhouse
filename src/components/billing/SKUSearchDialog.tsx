@@ -19,6 +19,13 @@ interface SKUSearchDialogProps {
   skus: SKU[];
   onSelect: (sku: SKU) => void;
   onScanRequest: () => void;
+  mode?: 'sale' | 'purchase';
+  onCreateSku?: (draft: {
+    name: string;
+    price_type: 'fixed' | 'per_metre';
+    fixed_price?: number | null;
+    rate?: number | null;
+  }) => Promise<SKU | null>;
 }
 
 export function SKUSearchDialog({
@@ -27,8 +34,15 @@ export function SKUSearchDialog({
   skus,
   onSelect,
   onScanRequest,
+  mode = 'sale',
+  onCreateSku,
 }: SKUSearchDialogProps) {
   const [search, setSearch] = useState('');
+  const [isCreating, setIsCreating] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [newPriceType, setNewPriceType] = useState<'fixed' | 'per_metre'>('fixed');
+  const [newFixedPrice, setNewFixedPrice] = useState('');
+  const [newRate, setNewRate] = useState('');
 
   const filtered = useMemo(() => {
     if (!search) return skus.slice(0, 20);
@@ -47,6 +61,31 @@ export function SKUSearchDialog({
     onSelect(sku);
     setSearch('');
     onClose();
+  };
+
+  const canCreate = mode === 'purchase' && typeof onCreateSku === 'function';
+
+  const handleCreate = async () => {
+    if (!canCreate) return;
+    const name = (newName || search).trim();
+    if (!name) return;
+    setIsCreating(true);
+    try {
+      const sku = await onCreateSku({
+        name,
+        price_type: newPriceType,
+        fixed_price: newPriceType === 'fixed' ? (parseFloat(newFixedPrice) || 0) : null,
+        rate: newPriceType === 'per_metre' ? (parseFloat(newRate) || 0) : null,
+      });
+      if (sku) {
+        handleSelect(sku);
+        setNewName('');
+        setNewFixedPrice('');
+        setNewRate('');
+      }
+    } finally {
+      setIsCreating(false);
+    }
   };
 
   return (
@@ -85,6 +124,61 @@ export function SKUSearchDialog({
                   <div className="text-center py-8 text-muted-foreground">
                     <Package className="w-12 h-12 mx-auto mb-2 opacity-50" />
                     <p>No items found</p>
+
+                    {canCreate && (
+                      <div className="mt-4 mx-auto max-w-sm text-left space-y-2">
+                        <div className="text-xs text-muted-foreground">Create new SKU for this purchase</div>
+                        <Input
+                          placeholder="SKU name"
+                          value={newName}
+                          onChange={(e) => setNewName(e.target.value)}
+                        />
+                        <div className="flex gap-2">
+                          <Button
+                            type="button"
+                            variant={newPriceType === 'fixed' ? 'default' : 'outline'}
+                            size="sm"
+                            className="flex-1"
+                            onClick={() => setNewPriceType('fixed')}
+                          >
+                            Fixed
+                          </Button>
+                          <Button
+                            type="button"
+                            variant={newPriceType === 'per_metre' ? 'default' : 'outline'}
+                            size="sm"
+                            className="flex-1"
+                            onClick={() => setNewPriceType('per_metre')}
+                          >
+                            Per metre
+                          </Button>
+                        </div>
+                        {newPriceType === 'fixed' ? (
+                          <Input
+                            type="number"
+                            placeholder="Price (₹)"
+                            value={newFixedPrice}
+                            onChange={(e) => setNewFixedPrice(e.target.value)}
+                          />
+                        ) : (
+                          <Input
+                            type="number"
+                            placeholder="Rate (₹/m)"
+                            value={newRate}
+                            onChange={(e) => setNewRate(e.target.value)}
+                          />
+                        )}
+                        <Button
+                          type="button"
+                          className="w-full"
+                          onClick={handleCreate}
+                          disabled={isCreating}
+                        >
+                          <Plus className="w-4 h-4 mr-2" />
+                          {isCreating ? 'Creating…' : 'Create SKU & Add'}
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   filtered.map((sku) => {

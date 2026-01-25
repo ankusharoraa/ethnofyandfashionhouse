@@ -54,7 +54,7 @@ export default function Billing() {
     fetchInvoices,
   } = useBilling();
    const { customers } = useCustomers();
-  const { skus, findByBarcode } = useSKUs();
+  const { skus, findByBarcode, createSKU } = useSKUs();
   const { suppliers } = useSuppliers();
   const { hasPermission } = usePermissions();
   const { toast } = useToast();
@@ -73,6 +73,42 @@ export default function Billing() {
   const [returningInvoice, setReturningInvoice] = useState<Invoice | null>(null);
   
   const totals = calculateTotals();
+
+  const generateSkuCode = (name: string) => {
+    const prefix = (name.trim().slice(0, 2) || 'SK').toUpperCase().replace(/[^A-Z0-9]/g, 'S');
+    const rand = Math.random().toString(36).substring(2, 7).toUpperCase();
+    return `${prefix}-${rand}`;
+  };
+
+  const handleCreateSkuForPurchase = async (draft: {
+    name: string;
+    price_type: 'fixed' | 'per_metre';
+    fixed_price?: number | null;
+    rate?: number | null;
+  }) => {
+    // 1) generate unique barcode (Code128 value)
+    const { data: barcode, error } = await supabase.rpc('generate_unique_barcode', { p_prefix: 'BC' });
+    if (error) {
+      console.error('Failed to generate barcode:', error);
+      toast({ title: 'Error', description: 'Failed to generate barcode', variant: 'destructive' });
+      return null;
+    }
+
+    // 2) create SKU with 0 initial stock (stock is increased by purchase completion RPC)
+    const sku = await createSKU({
+      sku_code: generateSkuCode(draft.name),
+      barcode,
+      name: draft.name,
+      price_type: draft.price_type,
+      fixed_price: draft.price_type === 'fixed' ? (draft.fixed_price ?? 0) : null,
+      rate: draft.price_type === 'per_metre' ? (draft.rate ?? 0) : null,
+      quantity: 0,
+      length_metres: 0,
+      low_stock_threshold: 5,
+    });
+
+    return (sku as any) || null;
+  };
 
   // Deep link support: /billing?invoiceId=XXX opens invoice details
   useEffect(() => {
@@ -523,6 +559,8 @@ export default function Billing() {
           setShowSearch(false);
           setShowScanner(true);
         }}
+        mode={billType}
+        onCreateSku={billType === 'purchase' ? handleCreateSkuForPurchase : undefined}
       />
 
       <SupplierSearchDialog

@@ -1,10 +1,12 @@
 import { motion } from 'framer-motion';
-import { Package, Ruler, AlertTriangle, Edit2, Trash2 } from 'lucide-react';
+import { Package, Ruler, AlertTriangle, Edit2, Trash2, Barcode } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type { SKU } from '@/hooks/useSKUs';
+import { useState } from 'react';
+import { BarcodeActionsDialog } from '@/components/barcodes/BarcodeActionsDialog';
 
 interface SKUCardProps {
   sku: SKU;
@@ -15,6 +17,7 @@ interface SKUCardProps {
 }
 
 export function SKUCard({ sku, onEdit, onDelete, onClick, showActions = true }: SKUCardProps) {
+  const [barcodeOpen, setBarcodeOpen] = useState(false);
   const isLowStock = sku.price_type === 'per_metre'
     ? sku.length_metres < sku.low_stock_threshold
     : sku.quantity < sku.low_stock_threshold;
@@ -78,6 +81,11 @@ export function SKUCard({ sku, onEdit, onDelete, onClick, showActions = true }: 
               <Badge variant="secondary" className="font-mono">
                 {sku.sku_code}
               </Badge>
+              {sku.barcode && (
+                <Badge variant="outline" className="font-mono">
+                  {sku.barcode}
+                </Badge>
+              )}
               {sku.categories && (
                 <Badge variant="outline">{sku.categories.name}</Badge>
               )}
@@ -105,6 +113,17 @@ export function SKUCard({ sku, onEdit, onDelete, onClick, showActions = true }: 
               {/* Actions */}
               {showActions && (
                 <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                  {sku.barcode && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => setBarcodeOpen(true)}
+                      aria-label="Barcode actions"
+                    >
+                      <Barcode className="w-4 h-4" />
+                    </Button>
+                  )}
                   {onEdit && (
                     <Button
                       variant="ghost"
@@ -131,6 +150,12 @@ export function SKUCard({ sku, onEdit, onDelete, onClick, showActions = true }: 
           </div>
         </div>
       </Card>
+
+      <BarcodeActionsDialog
+        open={barcodeOpen}
+        onClose={() => setBarcodeOpen(false)}
+        sku={sku}
+      />
     </motion.div>
   );
 }

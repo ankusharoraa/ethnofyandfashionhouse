@@ -12,7 +12,7 @@ import { useAuth } from '@/hooks/useAuth';
 
 export default function Inventory() {
   const { isOwner } = useAuth();
-  const { skus, categories, subcategories, isLoading, createSKU, updateSKU, deleteSKU } = useSKUs();
+  const { skus, categories, subcategories, isLoading, createSKU, updateSKU, updateStock, deleteSKU } = useSKUs();
   const [showForm, setShowForm] = useState(false);
   const [editingSKU, setEditingSKU] = useState<SKU | null>(null);
   const [search, setSearch] = useState('');
@@ -63,7 +63,36 @@ export default function Inventory() {
         </AnimatePresence>
       </div>
 
-      <SKUForm open={showForm || !!editingSKU} onClose={() => { setShowForm(false); setEditingSKU(null); }} onSubmit={editingSKU ? (d) => updateSKU(editingSKU.id, d) : createSKU} sku={editingSKU} categories={categories} subcategories={subcategories} />
+      <SKUForm
+        open={showForm || !!editingSKU}
+        onClose={() => {
+          setShowForm(false);
+          setEditingSKU(null);
+        }}
+        onSubmit={
+          editingSKU
+            ? async (d) => {
+                // Enforce traceability: if stock is changed manually from this form,
+                // record an inventory log entry via updateStock.
+                const nextQty = typeof d.quantity === 'number' ? d.quantity : editingSKU.quantity;
+                const nextLen = typeof d.length_metres === 'number' ? d.length_metres : editingSKU.length_metres;
+
+                const stockChanged = nextQty !== editingSKU.quantity || nextLen !== editingSKU.length_metres;
+
+                if (stockChanged) {
+                  await updateStock(editingSKU.id, nextQty, nextLen, 'Manual adjustment via SKU edit');
+                }
+
+                // Update other fields without touching stock.
+                const { quantity, length_metres, ...rest } = d as any;
+                return updateSKU(editingSKU.id, rest);
+              }
+            : createSKU
+        }
+        sku={editingSKU}
+        categories={categories}
+        subcategories={subcategories}
+      />
     </AppLayout>
   );
 }
