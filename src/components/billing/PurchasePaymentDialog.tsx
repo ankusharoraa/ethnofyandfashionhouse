@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Banknote, Smartphone, CreditCard, Clock, Building2 } from 'lucide-react';
 import {
   Dialog,
@@ -39,6 +39,26 @@ export function PurchasePaymentDialog({
 }: PurchasePaymentDialogProps) {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
   const [amountPaid, setAmountPaid] = useState(totalAmount.toString());
+
+  // Reset every time the dialog opens so we never carry stale values.
+  useEffect(() => {
+    if (!open) return;
+    setPaymentMethod('cash');
+    setAmountPaid(totalAmount.toFixed(2));
+  }, [open, totalAmount]);
+
+  // Convenience: credit implies unpaid now.
+  useEffect(() => {
+    if (!open) return;
+    if (paymentMethod === 'credit') {
+      setAmountPaid('0');
+    } else {
+      // If user previously had 0 (from credit), snap back to full by default.
+      const current = parseFloat(amountPaid) || 0;
+      if (current === 0) setAmountPaid(totalAmount.toFixed(2));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paymentMethod]);
 
   const handleConfirm = () => {
     const paid = parseFloat(amountPaid) || 0;
