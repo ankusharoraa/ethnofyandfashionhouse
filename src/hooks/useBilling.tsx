@@ -209,6 +209,19 @@ export function useBilling() {
     supplierName?: string,
     customerId?: string
   ) => {
+    // Ensure we have a valid session before inserting
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    
+    if (sessionError || !session?.user) {
+      console.error('Session error:', sessionError);
+      toast({
+        title: 'Session Expired',
+        description: 'Please refresh the page and try again',
+        variant: 'destructive',
+      });
+      return null;
+    }
+    
     const invoiceNumber = await generateInvoiceNumber();
     const totals = calculateTotals();
     
@@ -227,7 +240,7 @@ export function useBilling() {
         tax_amount: totals.taxAmount,
         total_amount: totals.totalAmount,
         status: 'draft',
-        created_by: user?.id,
+        created_by: session.user.id,
       })
       .select()
       .single();
@@ -236,7 +249,9 @@ export function useBilling() {
       console.error('Error creating invoice:', invoiceError);
       toast({
         title: 'Error',
-        description: 'Failed to create invoice',
+        description: invoiceError.code === '42501' 
+          ? 'Session expired. Please refresh the page.' 
+          : 'Failed to create invoice',
         variant: 'destructive',
       });
       return null;
