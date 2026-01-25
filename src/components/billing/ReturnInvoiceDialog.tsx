@@ -18,6 +18,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import type { Invoice } from '@/hooks/useBilling';
+import { ReturnRefundDialog } from '@/components/billing/ReturnRefundDialog';
 
 interface ReturnableItem {
   sku_id: string;
@@ -56,6 +57,11 @@ export function ReturnInvoiceDialog({
   const [isProcessing, setIsProcessing] = useState(false);
   const [items, setItems] = useState<ReturnableItem[]>([]);
   const [notes, setNotes] = useState('');
+  const [refundInfo, setRefundInfo] = useState<null | {
+    customerId: string;
+    amount: number;
+    defaultNotes: string;
+  }>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -182,7 +188,14 @@ export function ReturnInvoiceDialog({
 
       if (error) throw error;
 
-      const result = data as { success: boolean; error?: string; return_invoice_number?: string; return_amount?: number };
+      const result = data as {
+        success: boolean;
+        error?: string;
+        return_invoice_number?: string;
+        return_amount?: number;
+        applied_to_due?: number;
+        to_advance?: number;
+      };
 
       if (!result.success) {
         throw new Error(result.error || 'Return failed');
@@ -193,8 +206,18 @@ export function ReturnInvoiceDialog({
         description: `${result.return_invoice_number} - ₹${result.return_amount?.toFixed(2)}`,
       });
 
-      onReturnComplete();
-      onClose();
+      const excess = Number(result.to_advance || 0);
+      if (invoice.customer_id && excess > 0 && result.return_invoice_number) {
+        // Auto-refund the excess (instead of leaving it as Advance) – ask method each time
+        setRefundInfo({
+          customerId: invoice.customer_id,
+          amount: excess,
+          defaultNotes: `Refund for return ${result.return_invoice_number}`,
+        });
+      } else {
+        onReturnComplete();
+        onClose();
+      }
     } catch (error: any) {
       console.error('Error processing return:', error);
       toast({
@@ -215,7 +238,15 @@ export function ReturnInvoiceDialog({
   const remainingReturnable = invoice.total_amount - alreadyReturned;
 
   return (
-    <Dialog open={open} onOpenChange={o => !o && onClose()}>
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        if (!o) {
+          setRefundInfo(null);
+          onClose();
+        }
+      }}
+    >
       <DialogContent className="max-w-lg max-h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -411,6 +442,23 @@ export function ReturnInvoiceDialog({
           </Button>
         </DialogFooter>
       </DialogContent>
+
+      {invoice.customer_id && refundInfo && (
+        <ReturnRefundDialog
+          open={!!refundInfo}
+          onClose={() => {
+            setRefundInfo(null);
+            onReturnComplete();
+            onClose();
+          }}
+          customerId={refundInfo.customerId}
+          amount={refundInfo.amount}
+          defaultNotes={refundInfo.defaultNotes}
+          onRefunded={() => {
+            onReturnComplete();
+          }}
+        />
+      )}
     </Dialog>
   );
 }
