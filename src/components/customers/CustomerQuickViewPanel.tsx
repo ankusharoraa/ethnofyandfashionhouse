@@ -30,7 +30,7 @@ const PAGE_SIZE = 10;
 
 interface CustomerQuickViewPanelProps {
   customer: Customer | null;
-  onRefreshCustomerList: () => void;
+  onRefreshCustomerList: () => void | Promise<void>;
 }
 
 export function CustomerQuickViewPanel({ customer, onRefreshCustomerList }: CustomerQuickViewPanelProps) {
@@ -105,7 +105,7 @@ export function CustomerQuickViewPanel({ customer, onRefreshCustomerList }: Cust
   };
 
   const handlePaymentSuccess = async () => {
-    onRefreshCustomerList();
+    await onRefreshCustomerList();
     // reload preview list
     if (customer?.id) {
       const { data } = await supabase
