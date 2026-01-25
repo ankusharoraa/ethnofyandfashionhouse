@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
   CreditCard,
@@ -11,6 +11,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -18,6 +19,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { CustomerSearchCombobox } from './CustomerSearchCombobox';
 import type { PaymentMethod } from '@/hooks/useBilling';
 import type { Customer } from '@/hooks/useCustomers';
 
@@ -25,7 +27,7 @@ interface PaymentDialogProps {
   open: boolean;
   onClose: () => void;
   totalAmount: number;
-  customers: Customer[]; // ✅ passed in, NO fetching here
+  customers: Customer[];
   onConfirm: (
     paymentMethod: PaymentMethod,
     customerName?: string,
@@ -52,10 +54,32 @@ export function PaymentDialog({
 }: PaymentDialogProps) {
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod>('cash');
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
 
-  const selectedCustomer = customers?.find(c => c.id === selectedCustomerId);
+  // Reset state when dialog opens
+  useEffect(() => {
+    if (open) {
+      setSelectedMethod('cash');
+      setSelectedCustomerId('');
+      setSelectedCustomer(null);
+      setCustomerName('');
+      setCustomerPhone('');
+    }
+  }, [open]);
+
+  const handleCustomerSelect = (customerId: string, customer: Customer | null) => {
+    setSelectedCustomerId(customerId);
+    setSelectedCustomer(customer);
+    if (customer) {
+      setCustomerName(customer.name);
+      setCustomerPhone(customer.phone || '');
+    } else {
+      setCustomerName('');
+      setCustomerPhone('');
+    }
+  };
 
   const isCredit = selectedMethod === 'credit';
   const creditDisabled = isCredit && !selectedCustomer;
@@ -79,6 +103,9 @@ export function PaymentDialog({
             <Receipt className="w-5 h-5 text-primary" />
             Complete Payment
           </DialogTitle>
+          <DialogDescription>
+            Select payment method and customer details
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6">
@@ -90,45 +117,32 @@ export function PaymentDialog({
             </p>
           </div>
 
-          {/* Customer Dropdown */}
-          <div>
+          {/* Customer Search Combobox */}
+          <div className="space-y-2">
             <Label>Select Customer</Label>
-            <select
-              className="w-full border rounded-md p-2 mt-1"
-              value={selectedCustomerId}
-              onChange={(e) => {
-                const id = e.target.value;
-                setSelectedCustomerId(id);
-                const c = customers.find(x => x.id === id);
-                setCustomerName(c?.name || '');
-                setCustomerPhone(c?.phone || '');
-              }}
-            >
-              <option value="">Walk-in Customer</option>
-              {customers?.map(c => (
-                <option key={c.id} value={c.id}>
-                  {c.name} {c.phone ? `(${c.phone})` : ''}
-                </option>
-              ))}
-            </select>
+            <CustomerSearchCombobox
+              customers={customers}
+              selectedCustomerId={selectedCustomerId}
+              onSelect={handleCustomerSelect}
+            />
           </div>
 
           {/* Credit info */}
           {isCredit && selectedCustomer && (
-            <div className="text-sm bg-orange-50 border border-orange-200 rounded-md p-3 space-y-2">
+            <div className="text-sm bg-orange-50 border border-orange-200 rounded-md p-3 space-y-2 dark:bg-orange-950/20 dark:border-orange-800">
               <div className="flex justify-between">
                 <span>Current Outstanding</span>
                 <span className="font-semibold">
                   ₹{selectedCustomer.outstanding_balance.toFixed(2)}
                 </span>
               </div>
-              <div className="flex justify-between text-orange-700">
+              <div className="flex justify-between text-orange-700 dark:text-orange-400">
                 <span>New Pending (This Bill)</span>
                 <span className="font-semibold">
                   ₹{totalAmount.toFixed(2)}
                 </span>
               </div>
-              <div className="flex justify-between pt-2 border-t border-orange-300 font-bold text-orange-800">
+              <div className="flex justify-between pt-2 border-t border-orange-300 dark:border-orange-700 font-bold text-orange-800 dark:text-orange-300">
                 <span>Total After This Bill</span>
                 <span>
                   ₹{(selectedCustomer.outstanding_balance + totalAmount).toFixed(2)}
@@ -144,6 +158,7 @@ export function PaymentDialog({
               <Input
                 value={customerName}
                 onChange={(e) => setCustomerName(e.target.value)}
+                placeholder="Enter name or select above"
               />
             </div>
             <div>
@@ -151,6 +166,7 @@ export function PaymentDialog({
               <Input
                 value={customerPhone}
                 onChange={(e) => setCustomerPhone(e.target.value)}
+                placeholder="Enter phone number"
               />
             </div>
           </div>
@@ -162,11 +178,12 @@ export function PaymentDialog({
                 key={method}
                 type="button"
                 onClick={() => setSelectedMethod(method)}
-                className={`flex items-center gap-3 p-4 rounded-xl border-2 ${
+                className={`flex items-center gap-3 p-4 rounded-xl border-2 transition-colors ${
                   selectedMethod === method
-                    ? 'border-primary'
-                    : 'border-border'
+                    ? 'border-primary bg-primary/5'
+                    : 'border-border hover:border-primary/50'
                 }`}
+                whileTap={{ scale: 0.98 }}
               >
                 <Icon className={`w-5 h-5 ${color}`} />
                 {label}
@@ -179,12 +196,12 @@ export function PaymentDialog({
 
           {creditDisabled && (
             <p className="text-sm text-destructive">
-              Credit is allowed only for existing customers.
+              Credit is allowed only for existing customers. Please select a customer above.
             </p>
           )}
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="gap-2 sm:gap-0">
           <Button variant="outline" onClick={onClose} disabled={isProcessing}>
             Cancel
           </Button>
@@ -192,7 +209,7 @@ export function PaymentDialog({
             onClick={handleConfirm}
             disabled={isProcessing || creditDisabled}
           >
-            Confirm Payment
+            {isProcessing ? 'Processing...' : 'Confirm Payment'}
           </Button>
         </DialogFooter>
       </DialogContent>
