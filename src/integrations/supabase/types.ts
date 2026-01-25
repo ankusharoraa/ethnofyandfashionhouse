@@ -669,6 +669,27 @@ export type Database = {
         }
         Relationships: []
       }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -701,6 +722,10 @@ export type Database = {
         }
         Returns: Json
       }
+      ensure_user_bootstrap: {
+        Args: { p_full_name?: string; p_user_id: string }
+        Returns: Json
+      }
       generate_invoice_number: { Args: never; Returns: string }
       get_returnable_items: {
         Args: { p_invoice_id: string }
@@ -723,6 +748,13 @@ export type Database = {
       has_permission: {
         Args: {
           _permission: Database["public"]["Enums"]["permission_type"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
           _user_id: string
         }
         Returns: boolean
@@ -757,6 +789,7 @@ export type Database = {
       }
     }
     Enums: {
+      app_role: "owner" | "staff"
       invoice_status: "draft" | "completed" | "cancelled"
       invoice_type: "sale" | "purchase" | "return"
       payment_method: "cash" | "upi" | "card" | "credit"
@@ -899,6 +932,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      app_role: ["owner", "staff"],
       invoice_status: ["draft", "completed", "cancelled"],
       invoice_type: ["sale", "purchase", "return"],
       payment_method: ["cash", "upi", "card", "credit"],
