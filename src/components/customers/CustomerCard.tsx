@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { User, Phone, MapPin, IndianRupee, Trash2, Edit } from 'lucide-react';
+import { User, Phone, MapPin, IndianRupee, Trash2, Edit, Wallet, FileText } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -9,9 +9,11 @@ interface CustomerCardProps {
   customer: Customer;
   onEdit?: (customer: Customer) => void;
   onDelete?: (customer: Customer) => void;
+  onReceivePayment?: (customer: Customer) => void;
+  onViewLedger?: (customer: Customer) => void;
 }
 
-export function CustomerCard({ customer, onEdit, onDelete }: CustomerCardProps) {
+export function CustomerCard({ customer, onEdit, onDelete, onReceivePayment, onViewLedger }: CustomerCardProps) {
   const hasBalance = customer.outstanding_balance > 0;
 
   return (
@@ -66,7 +68,23 @@ export function CustomerCard({ customer, onEdit, onDelete }: CustomerCardProps) 
           </div>
 
           {/* Actions */}
-          <div className="flex gap-2">
+          <div className="flex gap-1">
+            {onViewLedger && (
+              <Button variant="ghost" size="icon" onClick={() => onViewLedger(customer)} title="View Ledger">
+                <FileText className="w-4 h-4" />
+              </Button>
+            )}
+            {hasBalance && onReceivePayment && (
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                onClick={() => onReceivePayment(customer)} 
+                title="Receive Payment"
+                className="text-green-600 hover:text-green-700 hover:bg-green-50"
+              >
+                <Wallet className="w-4 h-4" />
+              </Button>
+            )}
             {onEdit && (
               <Button variant="ghost" size="icon" onClick={() => onEdit(customer)}>
                 <Edit className="w-4 h-4" />

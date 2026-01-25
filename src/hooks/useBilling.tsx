@@ -295,12 +295,13 @@ export function useBilling() {
   const completeInvoice = async (
     invoiceId: string,
     paymentMethod: PaymentMethod = 'cash',
-    customerId?: string
+    customerId?: string,
+    amountPaid?: number
   ): Promise<{ success: boolean; error?: string }> => {
     const { data, error } = await supabase.rpc('complete_invoice', {
       p_invoice_id: invoiceId,
       p_payment_method: paymentMethod,
-      p_amount_paid: paymentMethod === 'credit' ? 0 : null,
+      p_amount_paid: amountPaid ?? null,
       p_customer_id: customerId || null,
     });
 
@@ -459,7 +460,8 @@ export function useBilling() {
     customerName?: string,
     customerPhone?: string,
     paymentMethod: PaymentMethod = 'cash',
-    customerId?: string
+    customerId?: string,
+    amountPaid?: number
   ) => {
     // Validate cart
     if (cartItems.length === 0) {
@@ -471,11 +473,16 @@ export function useBilling() {
       return null;
     }
 
-    // Credit requires a customer
-    if (paymentMethod === 'credit' && !customerId) {
+    // Calculate total for validation
+    const totals = calculateTotals();
+    const effectivePaid = paymentMethod === 'credit' ? 0 : (amountPaid ?? totals.totalAmount);
+    const pendingAmount = totals.totalAmount - effectivePaid;
+
+    // Credit or partial payment requires a customer
+    if ((paymentMethod === 'credit' || pendingAmount > 0) && !customerId) {
       toast({
         title: 'Customer Required',
-        description: 'Credit payment requires selecting an existing customer',
+        description: 'Credit or partial payment requires selecting an existing customer',
         variant: 'destructive',
       });
       return null;
@@ -507,7 +514,7 @@ export function useBilling() {
     if (!invoice) return null;
 
     // Complete the invoice (atomic stock update)
-    const result = await completeInvoice(invoice.id, paymentMethod, customerId);
+    const result = await completeInvoice(invoice.id, paymentMethod, customerId, amountPaid);
     
     if (!result.success) {
       return null;
