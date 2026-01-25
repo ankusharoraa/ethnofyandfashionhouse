@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
 import { format } from 'date-fns';
-import { Receipt, User, Phone, CreditCard, Banknote, Smartphone, Clock, XCircle, CheckCircle2, FileText, Building2, TrendingUp, TrendingDown } from 'lucide-react';
+import { Receipt, User, Phone, CreditCard, Banknote, Smartphone, Clock, XCircle, CheckCircle2, FileText, Building2, TrendingUp, TrendingDown, Undo2 } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -9,6 +9,7 @@ import type { Invoice } from '@/hooks/useBilling';
 interface InvoiceCardProps {
   invoice: Invoice;
   onCancel?: (id: string) => void;
+  onReturn?: (invoice: Invoice) => void;
   onViewDetails?: (invoice: Invoice) => void;
 }
 
@@ -25,11 +26,18 @@ const statusConfig = {
   cancelled: { color: 'bg-red-100 text-red-800', icon: XCircle },
 };
 
-export function InvoiceCard({ invoice, onCancel, onViewDetails }: InvoiceCardProps) {
+export function InvoiceCard({ invoice, onCancel, onReturn, onViewDetails }: InvoiceCardProps) {
   const PaymentIcon = paymentIcons[invoice.payment_method];
   const status = statusConfig[invoice.status];
   const StatusIcon = status.icon;
   const isPurchase = invoice.invoice_type === 'purchase';
+  const isReturn = invoice.invoice_type === 'return';
+  const isSale = invoice.invoice_type === 'sale';
+  
+  const returnedAmount = invoice.returned_amount || 0;
+  const hasReturns = returnedAmount > 0;
+  const isFullyReturned = returnedAmount >= invoice.total_amount;
+  const netAmount = invoice.total_amount - returnedAmount;
 
   return (
     <motion.div
@@ -38,24 +46,34 @@ export function InvoiceCard({ invoice, onCancel, onViewDetails }: InvoiceCardPro
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -20 }}
     >
-      <Card className="p-4">
+      <Card className={`p-4 ${isReturn ? 'border-orange-200 bg-orange-50/50 dark:bg-orange-950/10' : ''}`}>
         <div className="flex items-start justify-between gap-4">
           {/* Invoice Info */}
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1 flex-wrap">
-              {isPurchase ? (
+              {isReturn ? (
+                <Undo2 className="w-4 h-4 text-orange-500" />
+              ) : isPurchase ? (
                 <TrendingDown className="w-4 h-4 text-orange-500" />
               ) : (
                 <TrendingUp className="w-4 h-4 text-green-500" />
               )}
               <span className="font-mono font-semibold">{invoice.invoice_number}</span>
-              <Badge variant={isPurchase ? 'secondary' : 'default'} className="text-xs">
-                {isPurchase ? 'Purchase' : 'Sale'}
+              <Badge 
+                variant={isReturn ? 'outline' : isPurchase ? 'secondary' : 'default'} 
+                className={`text-xs ${isReturn ? 'border-orange-300 text-orange-600' : ''}`}
+              >
+                {isReturn ? 'Return' : isPurchase ? 'Purchase' : 'Sale'}
               </Badge>
               <Badge className={`${status.color} flex items-center gap-1`}>
                 <StatusIcon className="w-3 h-3" />
                 {invoice.status}
               </Badge>
+              {hasReturns && !isReturn && (
+                <Badge variant="outline" className="text-xs border-orange-300 text-orange-600">
+                  Returned ₹{returnedAmount.toFixed(0)}
+                </Badge>
+              )}
             </div>
 
             <p className="text-xs text-muted-foreground mb-2">
@@ -105,9 +123,18 @@ export function InvoiceCard({ invoice, onCancel, onViewDetails }: InvoiceCardPro
 
           {/* Amount & Actions */}
           <div className="text-right">
-            <p className="text-2xl font-bold text-primary">₹{invoice.total_amount.toFixed(2)}</p>
+            {isReturn ? (
+              <p className="text-2xl font-bold text-orange-600">-₹{Math.abs(invoice.total_amount).toFixed(2)}</p>
+            ) : hasReturns ? (
+              <div>
+                <p className="text-sm line-through text-muted-foreground">₹{invoice.total_amount.toFixed(0)}</p>
+                <p className="text-2xl font-bold text-primary">₹{netAmount.toFixed(2)}</p>
+              </div>
+            ) : (
+              <p className="text-2xl font-bold text-primary">₹{invoice.total_amount.toFixed(2)}</p>
+            )}
             
-            <div className="flex gap-2 mt-2">
+            <div className="flex gap-2 mt-2 justify-end">
               {onViewDetails && (
                 <Button
                   variant="outline"
@@ -117,7 +144,19 @@ export function InvoiceCard({ invoice, onCancel, onViewDetails }: InvoiceCardPro
                   View
                 </Button>
               )}
-              {onCancel && invoice.status !== 'cancelled' && (
+              {/* Return button for completed sales only */}
+              {onReturn && isSale && invoice.status === 'completed' && !isFullyReturned && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+                  onClick={() => onReturn(invoice)}
+                >
+                  <Undo2 className="w-4 h-4" />
+                </Button>
+              )}
+              {/* Cancel only for drafts */}
+              {onCancel && invoice.status === 'draft' && (
                 <Button
                   variant="ghost"
                   size="sm"

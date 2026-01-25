@@ -22,6 +22,7 @@ import { PurchasePaymentDialog } from '@/components/billing/PurchasePaymentDialo
 import { SupplierSearchDialog } from '@/components/billing/SupplierSearchDialog';
 import { InvoiceCard } from '@/components/billing/InvoiceCard';
 import { InvoiceViewDialog } from '@/components/billing/InvoiceViewDialog';
+import { ReturnInvoiceDialog } from '@/components/billing/ReturnInvoiceDialog';
 import { BarcodeScanner } from '@/components/scanner/BarcodeScanner';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -48,6 +49,7 @@ export default function Billing() {
     createAndCompletePurchaseBill,
     cancelInvoice,
     cancelPurchaseInvoice,
+    fetchInvoices,
   } = useBilling();
    const { customers } = useCustomers();
   const { skus, findByBarcode } = useSKUs();
@@ -64,11 +66,13 @@ export default function Billing() {
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [viewingInvoice, setViewingInvoice] = useState<Invoice | null>(null);
+  const [returningInvoice, setReturningInvoice] = useState<Invoice | null>(null);
   
   const totals = calculateTotals();
 
   // Filter invoices by type
   const salesInvoices = invoices.filter((i) => i.invoice_type === 'sale');
+  const returnInvoices = invoices.filter((i) => i.invoice_type === 'return');
   const purchaseInvoices = invoices.filter((i) => i.invoice_type === 'purchase');
 
   const handleScan = async (code: string) => {
@@ -380,6 +384,10 @@ export default function Billing() {
                 <TrendingUp className="w-4 h-4" />
                 Sales ({salesInvoices.length})
               </TabsTrigger>
+              <TabsTrigger value="returns" className="gap-2">
+                <Receipt className="w-4 h-4" />
+                Returns ({returnInvoices.length})
+              </TabsTrigger>
               <TabsTrigger value="purchases" className="gap-2">
                 <TrendingDown className="w-4 h-4" />
                 Purchases ({purchaseInvoices.length})
@@ -403,6 +411,31 @@ export default function Billing() {
                         key={invoice.id}
                         invoice={invoice}
                         onCancel={(id) => handleCancelInvoice(id, 'sale')}
+                        onReturn={setReturningInvoice}
+                        onViewDetails={setViewingInvoice}
+                      />
+                    ))}
+                  </AnimatePresence>
+                )}
+              </div>
+            </TabsContent>
+
+            <TabsContent value="returns">
+              <div className="space-y-3">
+                {returnInvoices.length === 0 ? (
+                  <Card className="p-12 text-center">
+                    <Receipt className="w-16 h-16 mx-auto mb-4 text-muted-foreground opacity-30" />
+                    <p className="text-lg text-muted-foreground">No returns yet</p>
+                    <p className="text-sm text-muted-foreground">
+                      Returns will appear here when processed
+                    </p>
+                  </Card>
+                ) : (
+                  <AnimatePresence>
+                    {returnInvoices.map((invoice) => (
+                      <InvoiceCard
+                        key={invoice.id}
+                        invoice={invoice}
                         onViewDetails={setViewingInvoice}
                       />
                     ))}
@@ -487,6 +520,13 @@ export default function Billing() {
         open={!!viewingInvoice}
         onClose={() => setViewingInvoice(null)}
         invoice={viewingInvoice}
+      />
+
+      <ReturnInvoiceDialog
+        open={!!returningInvoice}
+        onClose={() => setReturningInvoice(null)}
+        invoice={returningInvoice}
+        onReturnComplete={fetchInvoices}
       />
     </AppLayout>
   );

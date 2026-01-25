@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { format } from 'date-fns';
-import { FileText, ArrowUpRight, ArrowDownLeft, Loader2 } from 'lucide-react';
+import { FileText, ArrowUpRight, ArrowDownLeft, Loader2, Undo2 } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -16,7 +16,7 @@ import type { Customer } from '@/hooks/useCustomers';
 interface LedgerEntry {
   id: string;
   date: string;
-  type: 'invoice' | 'payment';
+  type: 'sale' | 'return' | 'payment';
   reference: string;
   debit: number;
   credit: number;
@@ -47,10 +47,10 @@ export function CustomerLedgerDialog({
   const fetchLedgerData = async () => {
     setIsLoading(true);
     try {
-      // Fetch invoices for this customer
+      // Fetch all invoices for this customer (sales and returns)
       const { data: invoiceData } = await supabase
         .from('invoices')
-        .select('id, invoice_number, created_at, total_amount, pending_amount, status')
+        .select('id, invoice_number, invoice_type, created_at, total_amount, pending_amount, status')
         .eq('customer_id', customer.id)
         .eq('status', 'completed')
         .order('created_at', { ascending: true });
@@ -74,17 +74,30 @@ export function CustomerLedgerDialog({
   const ledgerEntries = useMemo(() => {
     const entries: LedgerEntry[] = [];
 
-    // Add invoices (debits - customer owes us)
+    // Add invoices (sales = debit, returns = credit)
     invoices.forEach((inv) => {
-      entries.push({
-        id: inv.id,
-        date: inv.created_at,
-        type: 'invoice',
-        reference: inv.invoice_number,
-        debit: inv.pending_amount || 0, // Only pending amount is "owed"
-        credit: 0,
-        balance: 0, // Will calculate below
-      });
+      if (inv.invoice_type === 'sale') {
+        entries.push({
+          id: inv.id,
+          date: inv.created_at,
+          type: 'sale',
+          reference: inv.invoice_number,
+          debit: inv.pending_amount || 0, // Only pending amount is "owed"
+          credit: 0,
+          balance: 0,
+        });
+      } else if (inv.invoice_type === 'return') {
+        // Returns reduce outstanding balance
+        entries.push({
+          id: inv.id,
+          date: inv.created_at,
+          type: 'return',
+          reference: inv.invoice_number,
+          debit: 0,
+          credit: Math.abs(inv.total_amount), // Return amounts are stored as negative
+          balance: 0,
+        });
+      }
     });
 
     // Add payments (credits - customer paid us)
@@ -113,6 +126,42 @@ export function CustomerLedgerDialog({
     return entries;
   }, [invoices, payments]);
 
+  const totalDebits = ledgerEntries.reduce((sum, e) => sum + e.debit, 0);
+  const totalCredits = ledgerEntries.reduce((sum, e) => sum + e.credit, 0);
+
+  const getEntryIcon = (type: LedgerEntry['type']) => {
+    switch (type) {
+      case 'sale':
+        return <ArrowUpRight className="w-4 h-4" />;
+      case 'return':
+        return <Undo2 className="w-4 h-4" />;
+      case 'payment':
+        return <ArrowDownLeft className="w-4 h-4" />;
+    }
+  };
+
+  const getEntryStyle = (type: LedgerEntry['type']) => {
+    switch (type) {
+      case 'sale':
+        return 'bg-orange-100 text-orange-600 dark:bg-orange-900/30';
+      case 'return':
+        return 'bg-purple-100 text-purple-600 dark:bg-purple-900/30';
+      case 'payment':
+        return 'bg-green-100 text-green-600 dark:bg-green-900/30';
+    }
+  };
+
+  const getTypeLabel = (type: LedgerEntry['type']) => {
+    switch (type) {
+      case 'sale':
+        return 'Sale';
+      case 'return':
+        return 'Return';
+      case 'payment':
+        return 'Payment';
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-lg max-h-[80vh]">
@@ -140,27 +189,24 @@ export function CustomerLedgerDialog({
             <div className="space-y-2">
               {ledgerEntries.map((entry) => (
                 <div
-                  key={entry.id}
+                  key={`${entry.type}-${entry.id}`}
                   className="flex items-center gap-3 p-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors"
                 >
                   {/* Icon */}
                   <div
-                    className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                      entry.type === 'invoice'
-                        ? 'bg-orange-100 text-orange-600 dark:bg-orange-900/30'
-                        : 'bg-green-100 text-green-600 dark:bg-green-900/30'
-                    }`}
+                    className={`w-8 h-8 rounded-full flex items-center justify-center ${getEntryStyle(entry.type)}`}
                   >
-                    {entry.type === 'invoice' ? (
-                      <ArrowUpRight className="w-4 h-4" />
-                    ) : (
-                      <ArrowDownLeft className="w-4 h-4" />
-                    )}
+                    {getEntryIcon(entry.type)}
                   </div>
 
                   {/* Details */}
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{entry.reference}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-medium truncate">{entry.reference}</p>
+                      <Badge variant="outline" className="text-xs">
+                        {getTypeLabel(entry.type)}
+                      </Badge>
+                    </div>
                     <p className="text-xs text-muted-foreground">
                       {format(new Date(entry.date), 'dd MMM yyyy, hh:mm a')}
                     </p>
@@ -185,19 +231,19 @@ export function CustomerLedgerDialog({
             {/* Summary */}
             <div className="mt-4 pt-4 border-t border-border">
               <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Total Debits (Invoices)</span>
+                <span className="text-muted-foreground">Total Debits (Sales)</span>
                 <span className="font-medium text-orange-600">
-                  ₹{ledgerEntries.reduce((sum, e) => sum + e.debit, 0).toFixed(0)}
+                  ₹{totalDebits.toFixed(0)}
                 </span>
               </div>
               <div className="flex justify-between text-sm mt-1">
-                <span className="text-muted-foreground">Total Credits (Payments)</span>
+                <span className="text-muted-foreground">Total Credits (Returns + Payments)</span>
                 <span className="font-medium text-green-600">
-                  ₹{ledgerEntries.reduce((sum, e) => sum + e.credit, 0).toFixed(0)}
+                  ₹{totalCredits.toFixed(0)}
                 </span>
               </div>
               <div className="flex justify-between text-sm mt-2 pt-2 border-t border-border font-semibold">
-                <span>Current Balance</span>
+                <span>Net Due</span>
                 <span className={customer.outstanding_balance > 0 ? 'text-orange-600' : 'text-green-600'}>
                   ₹{customer.outstanding_balance.toFixed(0)}
                 </span>
