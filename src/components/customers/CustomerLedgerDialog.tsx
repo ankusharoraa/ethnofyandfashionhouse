@@ -98,16 +98,13 @@ export function CustomerLedgerDialog({
     // Add invoices (sales = debit, returns = credit)
      invoices.forEach((inv) => {
       if (inv.invoice_type === 'sale') {
-         const pending = Number(inv.pending_amount || 0);
-         const advanceApplied = Number(inv.advance_applied || 0);
         entries.push({
           id: inv.id,
           date: inv.created_at,
           type: 'sale',
           reference: inv.invoice_number,
-           // IMPORTANT: ledger running_balance is based on NET = outstanding_balance - advance_balance.
-           // So a sale increases net by (pending_amount + advance_applied).
-           debit: pending + advanceApplied,
+            // Use total_amount as debit to show the full obligation created by this sale
+            debit: Number(inv.total_amount || 0),
           credit: 0,
           balance: 0,
           advance_balance: 0,

@@ -117,6 +117,12 @@ export const InvoicePrint = forwardRef<HTMLDivElement, InvoicePrintProps>(
               <span>Subtotal:</span>
               <span>₹{invoice.subtotal.toFixed(2)}</span>
             </div>
+            {invoice.advance_applied > 0 && (
+              <div className="flex justify-between py-1 border-b text-green-700">
+                <span>Advance Applied:</span>
+                <span>-₹{invoice.advance_applied.toFixed(2)}</span>
+              </div>
+            )}
             {invoice.discount_amount > 0 && (
               <div className="flex justify-between py-1 border-b text-green-700">
                 <span>Discount:</span>
