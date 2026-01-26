@@ -83,10 +83,11 @@ export function PaymentDialog({
   useEffect(() => {
     if (!open) return;
     if (selectedMethod === 'credit') return;
-    if (!selectedCustomer) return;
-    if (amountTouched) return;
-    setAmountPaid(amountDueAfterAdvance.toString());
-  }, [open, selectedCustomer?.id, selectedMethod, amountDueAfterAdvance, amountTouched]);
+   if (amountTouched) return;
+   // Default to full bill amount - backend will apply advance automatically
+   // This ensures overpayments are captured correctly
+   setAmountPaid(totalAmount.toString());
+ }, [open, selectedMethod, totalAmount, amountTouched]);
 
   // Calculate amounts (based on payable after advance)
   const parsedPaid = parseFloat(amountPaid) || 0;
@@ -178,14 +179,14 @@ export function PaymentDialog({
           {/* Amount Paid - Only for non-credit */}
           {!isCredit && (
             <div>
-              <Label className="text-xs">Amount Paying</Label>
+             <Label className="text-xs">Cash Tendered</Label>
               <div className="relative mt-1">
                 <span className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">₹</span>
                 <Input
                   type="number"
                   value={amountPaid}
                   onChange={(e) => handleAmountChange(e.target.value)}
-                  className="pl-6 h-9"
+                 className="pl-6 h-9 font-medium"
                   max={!selectedCustomer ? amountDueAfterAdvance : undefined}
                 />
               </div>
