@@ -10,6 +10,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -141,9 +142,34 @@ export function PaymentDialog({
             <Receipt className="w-4 h-4 text-primary" />
             Checkout
           </DialogTitle>
+          <DialogDescription className="sr-only">
+            Complete payment for your purchase
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-3">
+          {/* Customer Balance Info - Show before bill */}
+          {selectedCustomer && (
+            <div className="bg-muted/50 rounded-lg p-2 text-xs space-y-1">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Customer</span>
+                <span className="font-medium">{selectedCustomer.name}</span>
+              </div>
+              {selectedCustomer.outstanding_balance > 0 && (
+                <div className="flex justify-between text-destructive">
+                  <span>Existing Due</span>
+                  <span className="font-semibold">₹{selectedCustomer.outstanding_balance.toFixed(0)}</span>
+                </div>
+              )}
+              {selectedCustomer.advance_balance > 0 && (
+                <div className="flex justify-between text-green-600 dark:text-green-400">
+                  <span>Available Advance</span>
+                  <span className="font-semibold">₹{selectedCustomer.advance_balance.toFixed(0)}</span>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Total - Compact */}
           <div className="text-center py-2 bg-primary/10 rounded-lg">
             <p className="text-2xl font-bold text-primary">₹{totalAmount.toFixed(0)}</p>
