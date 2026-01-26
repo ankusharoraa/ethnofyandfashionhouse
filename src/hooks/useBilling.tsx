@@ -44,6 +44,7 @@ export interface Invoice {
   total_amount: number;
   amount_paid: number;
   pending_amount: number;
+  advance_applied: number;
   returned_amount: number;
   payment_method: PaymentMethod;
   status: InvoiceStatus;

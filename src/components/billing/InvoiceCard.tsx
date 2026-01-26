@@ -112,6 +112,12 @@ export function InvoiceCard({ invoice, onCancel, onReturn, onViewDetails }: Invo
               <span className="capitalize">{invoice.payment_method}</span>
               <span className="text-muted-foreground">•</span>
               <span>{invoice.invoice_items?.length || 0} items</span>
+              {invoice.advance_applied > 0 && (
+                <>
+                  <span className="text-muted-foreground">•</span>
+                  <span className="text-green-600 dark:text-green-400">₹{invoice.advance_applied.toFixed(0)} advance used</span>
+                </>
+              )}
               {invoice.pending_amount > 0 && (
                 <>
                   <span className="text-muted-foreground">•</span>
