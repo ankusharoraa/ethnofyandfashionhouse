@@ -3,6 +3,9 @@ name: Preview sync from repoB
 on:
   workflow_dispatch:
 
+permissions:
+  contents: write 
+
 jobs:
   sync:
     runs-on: ubuntu-latest
@@ -25,7 +28,6 @@ jobs:
 
       - name: Sync repoB into repoA
         run: |
-          # Non-destructive sync (no deletes)
           rsync -av \
             --exclude='.git' \
             --exclude='.github' \
