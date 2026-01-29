@@ -13,7 +13,7 @@ jobs:
 
       - name: Clone repoB
         run: |
-          git clone https://github.com/ankusharoraa/repoB.git /tmp/repoB
+          git clone https://github.com/ankusharoraa/remix-of-suit-stock-simple-backup2.git
 
       - name: Sync repoB into repoA (preview branch)
         run: |
