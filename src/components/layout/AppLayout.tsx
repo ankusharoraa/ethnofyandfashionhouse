@@ -4,6 +4,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { Sidebar } from './Sidebar';
 import { MobileNav } from './MobileNav';
 import { Loader2 } from 'lucide-react';
+import { AppCommandPalette } from './AppCommandPalette';
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -29,6 +30,7 @@ export function AppLayout({ children }: AppLayoutProps) {
 
   return (
     <div className="min-h-screen bg-background">
+      <AppCommandPalette />
       {/* Desktop Sidebar */}
       <Sidebar />
 

@@ -9,12 +9,14 @@ import Dashboard from "./pages/Dashboard";
 import Inventory from "./pages/Inventory";
 import Scan from "./pages/Scan";
 import SalesBilling from "./pages/SalesBilling";
-import PurchaseBilling from "./pages/PurchaseBilling";
+ import PurchaseBilling from "./pages/PurchaseBilling";
+ import PurchaseBillingRevamped from "./pages/PurchaseBillingRevamped";
 import Customers from "./pages/Customers";
 import CustomerLedger from "./pages/CustomerLedger";
 import Suppliers from "./pages/Suppliers";
 import Reports from "./pages/Reports";
 import Settings from "./pages/Settings";
+import BarcodePrinting from "./pages/BarcodePrinting";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -37,10 +39,12 @@ const App = () => (
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/inventory" element={<Inventory />} />
             <Route path="/scan" element={<Scan />} />
+            <Route path="/barcode-printing" element={<BarcodePrinting />} />
             {/* Backward compatible route for deep links */}
             <Route path="/billing" element={<BillingRedirect />} />
             <Route path="/sales" element={<SalesBilling />} />
-            <Route path="/purchases" element={<PurchaseBilling />} />
+            <Route path="/purchases" element={<PurchaseBillingRevamped />} />
+            <Route path="/purchases/old" element={<PurchaseBilling />} />
             <Route path="/customers" element={<Customers />} />
             <Route path="/customers/:customerId/ledger" element={<CustomerLedger />} />
             <Route path="/suppliers" element={<Suppliers />} />

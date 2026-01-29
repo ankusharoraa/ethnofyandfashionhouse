@@ -75,10 +75,10 @@ export function PaymentDialog({
     setSelectedCustomer(customer);
   };
 
-  // Advance logic (applies only when a customer is selected)
-  const customerAdvance = Number(selectedCustomer?.advance_balance || 0);
-  const advanceUsed = selectedCustomer ? Math.min(customerAdvance, totalAmount) : 0;
-  const amountDueAfterAdvance = Math.max(0, totalAmount - advanceUsed);
+  // Note: Advance payments not yet implemented
+  const customerAdvance = 0;
+  const advanceUsed = 0;
+  const amountDueAfterAdvance = totalAmount;
 
   // When selecting a customer with advance, auto-set amount paying to remaining payable (unless user already edited)
   useEffect(() => {
@@ -159,12 +159,6 @@ export function PaymentDialog({
                 <div className="flex justify-between text-destructive">
                   <span>Existing Due</span>
                   <span className="font-semibold">₹{selectedCustomer.outstanding_balance.toFixed(0)}</span>
-                </div>
-              )}
-              {selectedCustomer.advance_balance > 0 && (
-                <div className="flex justify-between text-green-600 dark:text-green-400">
-                  <span>Available Advance</span>
-                  <span className="font-semibold">₹{selectedCustomer.advance_balance.toFixed(0)}</span>
                 </div>
               )}
             </div>

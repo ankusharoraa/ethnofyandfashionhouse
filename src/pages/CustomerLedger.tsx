@@ -38,8 +38,6 @@ type CustomerRow = {
   phone: string | null;
   city: string | null;
   outstanding_balance: number;
-  advance_balance: number;
-  is_deleted: boolean;
 };
 
 type PaymentRow = {
@@ -92,7 +90,7 @@ export default function CustomerLedger() {
     try {
       const { data: cust, error: custErr } = await supabase
         .from('customers')
-        .select('id, name, phone, city, outstanding_balance, advance_balance, is_deleted')
+        .select('id, name, phone, city, outstanding_balance')
         .eq('id', customerId)
         .maybeSingle();
 
@@ -106,9 +104,9 @@ export default function CustomerLedger() {
 
       setCustomer(cust as CustomerRow);
 
-      const { rows, hasMore: more } = await fetchLedgerPage(0);
-      setLedgerRows(rows);
-      setHasMore(more);
+      // Note: Ledger view not yet implemented
+      setLedgerRows([]);
+      setHasMore(false);
       setPage(0);
     } catch (e) {
       console.error('Failed to load customer ledger page:', e);
@@ -126,22 +124,11 @@ export default function CustomerLedger() {
     const from = pageIndex * PAGE_SIZE;
     const to = from + PAGE_SIZE - 1;
 
-    const { data, error } = await supabase
-      .from('customer_ledger')
-      .select(
-        'id, created_at, entry_type, reference_id, reference_label, debit_amount, credit_amount, running_balance'
-      )
-      .eq('customer_id', customerId)
-      .order('created_at', { ascending: false })
-      .order('id', { ascending: false })
-      .range(from, to);
-
-    if (error) throw error;
-
-    const rows = (data || []) as LedgerRow[];
+    // Note: Ledger view not yet implemented
+    const rows: LedgerRow[] = [];
     return {
       rows,
-      hasMore: rows.length === PAGE_SIZE,
+      hasMore: false,
     };
   };
 
@@ -178,13 +165,9 @@ export default function CustomerLedger() {
     if (!customer) return null;
     return (
       <div className="flex flex-wrap gap-2">
-        {Number(customer.advance_balance || 0) > 0 && (
-          <Badge variant="secondary">Advance ₹{Number(customer.advance_balance || 0).toFixed(0)}</Badge>
-        )}
         {Number(customer.outstanding_balance || 0) > 0 && (
           <Badge variant="destructive">Due ₹{Number(customer.outstanding_balance || 0).toFixed(0)}</Badge>
         )}
-        {customer.is_deleted && <Badge variant="destructive">Archived</Badge>}
       </div>
     );
   }, [customer]);
@@ -263,8 +246,7 @@ export default function CustomerLedger() {
               <Button
                 variant="outline"
                 onClick={() => setShowReceivePayment(true)}
-                disabled={customer.is_deleted}
-                title={customer.is_deleted ? 'Customer is archived' : 'Receive payment'}
+                title="Receive payment"
               >
                 <Wallet className="w-4 h-4 mr-2" />
                 Receive Payment
@@ -272,14 +254,8 @@ export default function CustomerLedger() {
               <Button
                 variant="outline"
                 onClick={() => setShowAdvanceRefund(true)}
-                disabled={customer.is_deleted || Number(customer.advance_balance || 0) <= 0}
-                title={
-                  customer.is_deleted
-                    ? 'Customer is archived'
-                    : Number(customer.advance_balance || 0) <= 0
-                      ? 'No advance to refund'
-                      : 'Refund advance'
-                }
+                disabled
+                title="Feature not yet implemented"
               >
                 Refund Advance
               </Button>
@@ -299,6 +275,12 @@ export default function CustomerLedger() {
         </Card>
       ) : (
         <Card className="p-4">
+            <div className="text-center py-12 text-muted-foreground">
+              <FileText className="w-12 h-12 mx-auto mb-3 opacity-30" />
+              <p className="text-lg font-medium">Ledger View Not Available</p>
+              <p className="text-sm">Customer ledger feature is not yet implemented</p>
+            </div>
+            {/* Commented out until ledger view is implemented
           <ScrollArea className="h-[70vh]">
             <div className="space-y-2 pr-4">
               {ledgerRows.map((row) => {
@@ -354,6 +336,7 @@ export default function CustomerLedger() {
               )}
             </div>
           </ScrollArea>
+          */}
         </Card>
       )}
 

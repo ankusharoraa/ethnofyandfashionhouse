@@ -12,6 +12,7 @@ export interface Supplier {
   email: string | null;
   address: string | null;
   city: string | null;
+  state?: string | null;
   gstin: string | null;
   notes: string | null;
   total_purchases: number;
@@ -98,6 +99,7 @@ export function useSuppliers() {
         email: supplier.email,
         address: supplier.address,
         city: supplier.city,
+        state: supplier.state ?? null,
         gstin: supplier.gstin,
         notes: supplier.notes,
         created_by: user?.id,

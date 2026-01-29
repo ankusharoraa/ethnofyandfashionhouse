@@ -44,47 +44,6 @@ export type Database = {
         }
         Relationships: []
       }
-      customer_advance_refunds: {
-        Row: {
-          amount: number
-          created_at: string
-          created_by: string | null
-          customer_id: string
-          id: string
-          notes: string | null
-          refund_date: string
-          refund_method: Database["public"]["Enums"]["payment_method"]
-        }
-        Insert: {
-          amount: number
-          created_at?: string
-          created_by?: string | null
-          customer_id: string
-          id?: string
-          notes?: string | null
-          refund_date?: string
-          refund_method: Database["public"]["Enums"]["payment_method"]
-        }
-        Update: {
-          amount?: number
-          created_at?: string
-          created_by?: string | null
-          customer_id?: string
-          id?: string
-          notes?: string | null
-          refund_date?: string
-          refund_method?: Database["public"]["Enums"]["payment_method"]
-        }
-        Relationships: [
-          {
-            foreignKeyName: "customer_advance_refunds_customer_id_fkey"
-            columns: ["customer_id"]
-            isOneToOne: false
-            referencedRelation: "customers"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       customer_ledger: {
         Row: {
           created_at: string
@@ -193,6 +152,7 @@ export type Database = {
           deleted_at: string | null
           deleted_by: string | null
           email: string | null
+          gstin: string | null
           id: string
           is_deleted: boolean
           name: string
@@ -200,6 +160,7 @@ export type Database = {
           notes: string | null
           outstanding_balance: number
           phone: string | null
+          state: string | null
           total_purchases: number
           updated_at: string
         }
@@ -212,6 +173,7 @@ export type Database = {
           deleted_at?: string | null
           deleted_by?: string | null
           email?: string | null
+          gstin?: string | null
           id?: string
           is_deleted?: boolean
           name: string
@@ -219,6 +181,7 @@ export type Database = {
           notes?: string | null
           outstanding_balance?: number
           phone?: string | null
+          state?: string | null
           total_purchases?: number
           updated_at?: string
         }
@@ -231,6 +194,7 @@ export type Database = {
           deleted_at?: string | null
           deleted_by?: string | null
           email?: string | null
+          gstin?: string | null
           id?: string
           is_deleted?: boolean
           name?: string
@@ -238,6 +202,7 @@ export type Database = {
           notes?: string | null
           outstanding_balance?: number
           phone?: string | null
+          state?: string | null
           total_purchases?: number
           updated_at?: string
         }
@@ -292,51 +257,81 @@ export type Database = {
       }
       invoice_items: {
         Row: {
-          cost_price: number | null
+          calculated_discount: number | null
+          cgst_amount: number
           created_at: string
+          discount_amount_per_unit: number | null
+          discount_percent: number | null
+          discount_total_amount: number | null
+          discount_type: string | null
+          gst_rate: number
+          hsn_code: string | null
           id: string
+          igst_amount: number
           invoice_id: string
           length_metres: number | null
           line_total: number
+          mrp: number | null
           price_type: Database["public"]["Enums"]["price_type"]
           quantity: number | null
           rate: number | null
-          sell_price: number | null
+          sgst_amount: number
           sku_code: string
           sku_id: string
           sku_name: string
+          taxable_value: number
           unit_price: number
         }
         Insert: {
-          cost_price?: number | null
+          calculated_discount?: number | null
+          cgst_amount?: number
           created_at?: string
+          discount_amount_per_unit?: number | null
+          discount_percent?: number | null
+          discount_total_amount?: number | null
+          discount_type?: string | null
+          gst_rate?: number
+          hsn_code?: string | null
           id?: string
+          igst_amount?: number
           invoice_id: string
           length_metres?: number | null
           line_total: number
+          mrp?: number | null
           price_type: Database["public"]["Enums"]["price_type"]
           quantity?: number | null
           rate?: number | null
-          sell_price?: number | null
+          sgst_amount?: number
           sku_code: string
           sku_id: string
           sku_name: string
+          taxable_value?: number
           unit_price: number
         }
         Update: {
-          cost_price?: number | null
+          calculated_discount?: number | null
+          cgst_amount?: number
           created_at?: string
+          discount_amount_per_unit?: number | null
+          discount_percent?: number | null
+          discount_total_amount?: number | null
+          discount_type?: string | null
+          gst_rate?: number
+          hsn_code?: string | null
           id?: string
+          igst_amount?: number
           invoice_id?: string
           length_metres?: number | null
           line_total?: number
+          mrp?: number | null
           price_type?: Database["public"]["Enums"]["price_type"]
           quantity?: number | null
           rate?: number | null
-          sell_price?: number | null
+          sgst_amount?: number
           sku_code?: string
           sku_id?: string
           sku_name?: string
+          taxable_value?: number
           unit_price?: number
         }
         Relationships: [
@@ -360,23 +355,34 @@ export type Database = {
         Row: {
           advance_applied: number
           amount_paid: number
+          bank_account: string | null
+          cgst_amount: number
           created_at: string
           created_by: string | null
+          customer_gstin: string | null
           customer_id: string | null
           customer_name: string | null
           customer_phone: string | null
           discount_amount: number
+          gst_pricing_mode: string
           id: string
+          igst_amount: number
           invoice_number: string
           invoice_type: Database["public"]["Enums"]["invoice_type"]
           notes: string | null
           parent_invoice_id: string | null
           payment_method: Database["public"]["Enums"]["payment_method"]
           pending_amount: number
+          place_of_supply_state: string | null
           returned_amount: number
+          round_off_amount: number | null
+          sgst_amount: number
           status: Database["public"]["Enums"]["invoice_status"]
           subtotal: number
+          supplier_gstin: string | null
           supplier_id: string | null
+          supplier_invoice_date: string | null
+          supplier_invoice_no: string | null
           supplier_name: string | null
           tax_amount: number
           total_amount: number
@@ -385,23 +391,34 @@ export type Database = {
         Insert: {
           advance_applied?: number
           amount_paid?: number
+          bank_account?: string | null
+          cgst_amount?: number
           created_at?: string
           created_by?: string | null
+          customer_gstin?: string | null
           customer_id?: string | null
           customer_name?: string | null
           customer_phone?: string | null
           discount_amount?: number
+          gst_pricing_mode?: string
           id?: string
+          igst_amount?: number
           invoice_number: string
           invoice_type?: Database["public"]["Enums"]["invoice_type"]
           notes?: string | null
           parent_invoice_id?: string | null
           payment_method?: Database["public"]["Enums"]["payment_method"]
           pending_amount?: number
+          place_of_supply_state?: string | null
           returned_amount?: number
+          round_off_amount?: number | null
+          sgst_amount?: number
           status?: Database["public"]["Enums"]["invoice_status"]
           subtotal?: number
+          supplier_gstin?: string | null
           supplier_id?: string | null
+          supplier_invoice_date?: string | null
+          supplier_invoice_no?: string | null
           supplier_name?: string | null
           tax_amount?: number
           total_amount?: number
@@ -410,23 +427,34 @@ export type Database = {
         Update: {
           advance_applied?: number
           amount_paid?: number
+          bank_account?: string | null
+          cgst_amount?: number
           created_at?: string
           created_by?: string | null
+          customer_gstin?: string | null
           customer_id?: string | null
           customer_name?: string | null
           customer_phone?: string | null
           discount_amount?: number
+          gst_pricing_mode?: string
           id?: string
+          igst_amount?: number
           invoice_number?: string
           invoice_type?: Database["public"]["Enums"]["invoice_type"]
           notes?: string | null
           parent_invoice_id?: string | null
           payment_method?: Database["public"]["Enums"]["payment_method"]
           pending_amount?: number
+          place_of_supply_state?: string | null
           returned_amount?: number
+          round_off_amount?: number | null
+          sgst_amount?: number
           status?: Database["public"]["Enums"]["invoice_status"]
           subtotal?: number
+          supplier_gstin?: string | null
           supplier_id?: string | null
+          supplier_invoice_date?: string | null
+          supplier_invoice_no?: string | null
           supplier_name?: string | null
           tax_amount?: number
           total_amount?: number
@@ -543,26 +571,20 @@ export type Database = {
       skus: {
         Row: {
           barcode: string | null
-          base_name: string | null
           category_id: string | null
-          color: string | null
           created_at: string
           created_by: string | null
-          deleted_at: string | null
-          deleted_by: string | null
           description: string | null
           fixed_price: number | null
+          gst_rate: number
+          hsn_code: string | null
           id: string
           image_url: string | null
-          is_deleted: boolean
           length_metres: number | null
           low_stock_threshold: number | null
           name: string
           name_hindi: string | null
-          parent_sku_id: string | null
           price_type: Database["public"]["Enums"]["price_type"]
-          purchase_fixed_price: number | null
-          purchase_rate: number | null
           quantity: number | null
           rate: number | null
           sku_code: string
@@ -573,26 +595,20 @@ export type Database = {
         }
         Insert: {
           barcode?: string | null
-          base_name?: string | null
           category_id?: string | null
-          color?: string | null
           created_at?: string
           created_by?: string | null
-          deleted_at?: string | null
-          deleted_by?: string | null
           description?: string | null
           fixed_price?: number | null
+          gst_rate?: number
+          hsn_code?: string | null
           id?: string
           image_url?: string | null
-          is_deleted?: boolean
           length_metres?: number | null
           low_stock_threshold?: number | null
           name: string
           name_hindi?: string | null
-          parent_sku_id?: string | null
           price_type?: Database["public"]["Enums"]["price_type"]
-          purchase_fixed_price?: number | null
-          purchase_rate?: number | null
           quantity?: number | null
           rate?: number | null
           sku_code: string
@@ -603,26 +619,20 @@ export type Database = {
         }
         Update: {
           barcode?: string | null
-          base_name?: string | null
           category_id?: string | null
-          color?: string | null
           created_at?: string
           created_by?: string | null
-          deleted_at?: string | null
-          deleted_by?: string | null
           description?: string | null
           fixed_price?: number | null
+          gst_rate?: number
+          hsn_code?: string | null
           id?: string
           image_url?: string | null
-          is_deleted?: boolean
           length_metres?: number | null
           low_stock_threshold?: number | null
           name?: string
           name_hindi?: string | null
-          parent_sku_id?: string | null
           price_type?: Database["public"]["Enums"]["price_type"]
-          purchase_fixed_price?: number | null
-          purchase_rate?: number | null
           quantity?: number | null
           rate?: number | null
           sku_code?: string
@@ -637,13 +647,6 @@ export type Database = {
             columns: ["category_id"]
             isOneToOne: false
             referencedRelation: "categories"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "skus_parent_sku_id_fkey"
-            columns: ["parent_sku_id"]
-            isOneToOne: false
-            referencedRelation: "skus"
             referencedColumns: ["id"]
           },
           {
@@ -714,53 +717,6 @@ export type Database = {
           },
         ]
       }
-      supplier_ledger: {
-        Row: {
-          created_at: string
-          created_by: string | null
-          credit_amount: number
-          debit_amount: number
-          entry_type: Database["public"]["Enums"]["supplier_ledger_entry_type"]
-          id: string
-          reference_id: string | null
-          reference_label: string | null
-          running_balance: number
-          supplier_id: string
-        }
-        Insert: {
-          created_at?: string
-          created_by?: string | null
-          credit_amount?: number
-          debit_amount?: number
-          entry_type: Database["public"]["Enums"]["supplier_ledger_entry_type"]
-          id?: string
-          reference_id?: string | null
-          reference_label?: string | null
-          running_balance?: number
-          supplier_id: string
-        }
-        Update: {
-          created_at?: string
-          created_by?: string | null
-          credit_amount?: number
-          debit_amount?: number
-          entry_type?: Database["public"]["Enums"]["supplier_ledger_entry_type"]
-          id?: string
-          reference_id?: string | null
-          reference_label?: string | null
-          running_balance?: number
-          supplier_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "supplier_ledger_supplier_id_fkey"
-            columns: ["supplier_id"]
-            isOneToOne: false
-            referencedRelation: "suppliers"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       supplier_payments: {
         Row: {
           amount: number
@@ -816,6 +772,7 @@ export type Database = {
           notes: string | null
           outstanding_balance: number
           phone: string | null
+          state: string | null
           total_paid: number
           total_purchases: number
           updated_at: string
@@ -833,6 +790,7 @@ export type Database = {
           notes?: string | null
           outstanding_balance?: number
           phone?: string | null
+          state?: string | null
           total_paid?: number
           total_purchases?: number
           updated_at?: string
@@ -850,6 +808,7 @@ export type Database = {
           notes?: string | null
           outstanding_balance?: number
           phone?: string | null
+          state?: string | null
           total_paid?: number
           total_purchases?: number
           updated_at?: string
@@ -894,18 +853,6 @@ export type Database = {
         }
         Returns: string
       }
-      append_supplier_ledger: {
-        Args: {
-          p_created_at?: string
-          p_credit: number
-          p_debit: number
-          p_entry_type: Database["public"]["Enums"]["supplier_ledger_entry_type"]
-          p_reference_id: string
-          p_reference_label: string
-          p_supplier_id: string
-        }
-        Returns: string
-      }
       assert_customer_active: {
         Args: { p_customer_id: string }
         Returns: undefined
@@ -942,8 +889,6 @@ export type Database = {
         Returns: Json
       }
       generate_invoice_number: { Args: never; Returns: string }
-      generate_unique_barcode: { Args: { p_prefix?: string }; Returns: string }
-      generate_unique_sku_code: { Args: { p_prefix?: string }; Returns: string }
       get_customer_running_balance: {
         Args: { p_customer_id: string }
         Returns: number
@@ -965,10 +910,6 @@ export type Database = {
           sku_name: string
           unit_price: number
         }[]
-      }
-      get_supplier_running_balance: {
-        Args: { p_supplier_id: string }
-        Returns: number
       }
       has_permission: {
         Args: {
@@ -1012,17 +953,7 @@ export type Database = {
         }
         Returns: Json
       }
-      refund_customer_advance: {
-        Args: {
-          p_amount: number
-          p_customer_id: string
-          p_notes?: string
-          p_refund_method?: Database["public"]["Enums"]["payment_method"]
-        }
-        Returns: Json
-      }
       soft_delete_customer: { Args: { p_customer_id: string }; Returns: Json }
-      soft_delete_sku: { Args: { p_sku_id: string }; Returns: Json }
     }
     Enums: {
       app_role: "owner" | "staff"
@@ -1040,7 +971,6 @@ export type Database = {
         | "view_profit"
         | "manage_employees"
       price_type: "per_metre" | "fixed"
-      supplier_ledger_entry_type: "purchase" | "payment" | "adjustment"
       sync_status: "synced" | "pending" | "offline"
       user_role: "owner" | "staff"
     }
@@ -1186,7 +1116,6 @@ export const Constants = {
         "manage_employees",
       ],
       price_type: ["per_metre", "fixed"],
-      supplier_ledger_entry_type: ["purchase", "payment", "adjustment"],
       sync_status: ["synced", "pending", "offline"],
       user_role: ["owner", "staff"],
     },

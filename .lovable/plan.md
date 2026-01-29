@@ -1,166 +1,160 @@
 
 Goal
-- In Purchase flow, require two separate prices:
-  1) Purchase/Cost price (what you paid)
-  2) Selling price (what you sell for)
-- Show profit/margin instantly while entering these values (percent + optional reverse calculation).
-- Use these values to generate daily profit reports.
+- Add keyboard shortcuts for the Purchases (Revamped) screen:
+  - Up/Down: move selected row
+  - Enter: focus the right-side editor
+  - Delete/Backspace: remove selected row (with confirmation)
+- Add a global “Create Bill” shortcut via a Command Palette (as you chose):
+  - Ctrl+K / Cmd+K opens a command palette from anywhere
+  - Actions include: “New Sales Bill”, “New Purchase Bill”
+  - On Purchases screen, the palette also includes “Add item (SKU search)”
+- Show shortcut hints on hover anywhere a shortcut exists (buttons, icons, etc.)
 
-What’s currently happening (problem)
-- The system currently uses `skus.fixed_price / skus.rate` as a single “price”.
-- In purchase bills, the “cost” you enter is stored into invoice_items `unit_price`/`rate`, and the backend currently updates `skus.fixed_price / skus.rate` from that, which overwrites the selling price.
-- Reports page currently shows inventory value, not daily sales/profit.
+What I found in the codebase
+- Purchases screen is `src/pages/PurchaseBillingRevamped.tsx`
+  - Uses `selectedRowIndex` state and passes it to `PurchaseProductTable`
+  - Deleting rows is currently immediate (`onDeleteRow(index)`), no confirmation
+  - SKU search dialog is currently controlled inside `PurchaseEntryForm` (local `showSKUSearch`)
+- UI tooltips are available (`src/components/ui/tooltip.tsx`)
+- A Command Palette building block already exists: `CommandDialog` in `src/components/ui/command.tsx`
+- AlertDialog is available for confirmation (`src/components/ui/alert-dialog.tsx`)
 
-High-level design (new pricing model)
-- Keep existing `skus.fixed_price` and `skus.rate` as the Selling price (shared on base product, inherited to variants).
-- Add new fields for Purchase/Cost price on SKUs:
-  - `skus.purchase_fixed_price` (cost per piece)
-  - `skus.purchase_rate` (cost per metre)
-- In Purchase billing:
-  - Cost price is mandatory per line item.
-  - Selling price is mandatory if missing for that product (as you approved: “Only if missing”).
-  - Show margin/profit % live:  
-    margin% = ((selling - cost) / cost) * 100 (when cost > 0)
-  - Also allow “enter margin%” to auto-calc selling price (optional, but matches your “shows profit percent directly or vice-versa” request).
+Design decisions (important)
+1) One shortcut should not conflict with another:
+   - Because you selected “Ctrl+K command palette” globally, we’ll standardize on:
+     - Ctrl/Cmd+K = Command Palette (global)
+     - In Purchases, “Search SKU” becomes the top/first action in the palette, so Ctrl+K → Enter feels like “open search”
+     - Additionally, we can add an optional direct shortcut for SKU search on Purchases (Ctrl+/ or Ctrl+F) if you want later, but we’ll keep the first iteration consistent with your choice.
 
-Data changes (backend/database)
-1) Schema changes (migration)
-- Add columns to `public.skus`:
-  - `purchase_fixed_price numeric null`
-  - `purchase_rate numeric null`
-- Add columns to `public.invoice_items`:
-  - `cost_price numeric null`  
-    (stored on SALES invoice items to snapshot the cost at the time of sale; used for accurate daily profit)
-  - `sell_price numeric null`  
-    (used mainly on PURCHASE invoice items to carry selling price when required; also useful for audit)
-- Update variant triggers so variants inherit BOTH selling price and purchase price from parent base product:
-  - In `trg_skus_enforce_variant_fields`: also copy `purchase_fixed_price/purchase_rate` from parent
-  - In `trg_skus_sync_variants_from_parent`: also propagate `purchase_fixed_price/purchase_rate` to variants
-- Update `complete_purchase_invoice` function:
-  - Stock update stays on variant (same as now)
-  - Update base product prices as:
-    - Purchase cost fields updated from the purchase invoice item:
-      - fixed: `purchase_fixed_price = invoice_items.unit_price`
-      - per_metre: `purchase_rate = invoice_items.rate` (or fallback `unit_price` if needed)
-    - Selling price fields updated only if missing AND a selling price was supplied:
-      - fixed: if base.fixed_price is null/0 then set from `invoice_items.sell_price`
-      - per_metre: if base.rate is null/0 then set from `invoice_items.sell_price`
-  - This prevents purchases from overwriting selling price, while still capturing cost.
+2) We must not fire shortcuts while the user is typing:
+   - Shortcuts will be ignored when focus is inside inputs/textareas/contenteditable, or when any dialog is open.
 
-2) Migration for existing data
-- For existing SKUs:
-  - Initialize `purchase_fixed_price` / `purchase_rate` from current selling price only when purchase price is missing (best-effort default), OR leave as null and let future purchases fill it.
-  - I recommend: set purchase_* = selling_* only if purchase_* is null, so profit report won’t break immediately.
-- For existing invoice_items:
-  - Leave new columns null; daily profit report will use fallbacks for older data (see reporting section below).
+Implementation plan
 
-Frontend changes (app behavior)
-1) Update SKU type + SKU forms (Inventory)
-- Extend the SKU type in `useSKUs` to include:
-  - `purchase_fixed_price`, `purchase_rate`
-- Inventory SKU form:
-  - For Base product editing: show both Selling price and Purchase price fields (purchase optional).
-  - For Variant: keep price fields read-only (inherited), but display both selling + purchase for clarity.
+A) Global Command Palette (Create Bill shortcuts)
+1) Add a new “App Command Palette” component mounted inside `AppLayout`:
+   - File: `src/components/layout/AppLayout.tsx`
+   - State: `open`, `query` (optional), and `context` (current route)
+   - Keyboard listener:
+     - Ctrl+K / Cmd+K → open palette
+     - Escape → close palette
+2) Build the palette UI using existing shadcn cmdk wrappers:
+   - Use: `CommandDialog`, `CommandInput`, `CommandList`, `CommandGroup`, `CommandItem`, `CommandShortcut`
+3) Actions inside the palette:
+   - Global:
+     - “New Sales Bill” → navigate to `/sales`
+     - “New Purchase Bill” → navigate to `/purchases`
+   - Contextual (only when route is `/purchases`):
+     - “Add item (Search SKU)” → triggers opening SKU search on the Purchases page (see section B2)
+4) Show shortcut hint in the palette list using `CommandShortcut`:
+   - Example: “New Sales Bill” shows “Ctrl K, then S” (or we can implement direct palette filtering)
+   - Keep it simple: show “Ctrl+K” as the global entry point, and show “Enter” usage inside the palette.
 
-2) Purchase billing UI (mandatory fields + margin display)
-A) Bill item row changes (Purchase mode)
-- In Purchase bill item row, show 2 price inputs:
-  - Cost (mandatory):  
-    - fixed: Cost (₹/pc) → stored in `invoice_items.unit_price`
-    - per_metre: Cost (₹/m) → stored in `invoice_items.rate` (and optionally sync `unit_price`)
-  - Selling (mandatory only if missing in SKU):  
-    - stored in `invoice_items.sell_price`
-- Show derived margin right next to it:
-  - “Profit: ₹X/pc” (or ₹X/m)
-  - “Margin: Y%”
-- Optional “Reverse” entry:
-  - Input for margin% that auto-fills selling price:
-    - selling = cost * (1 + margin%/100)
+B) Purchases page keyboard shortcuts (power-user)
+Target file: `src/pages/PurchaseBillingRevamped.tsx`
 
-B) Purchase validation (before checkout)
-- Extend the existing validation in `PurchaseBilling.tsx`:
-  - Already validates cost > 0; keep that.
-  - Add: if the SKU’s selling price is missing (0/null), require `item.sell_price > 0`.
-  - For per_metre: check the relevant selling field similarly.
+1) Row navigation (Up/Down)
+- Add a keydown handler (active only when:
+  - route is `/purchases`
+  - no modal is open
+  - focus is not inside an input)
+- Behavior:
+  - ArrowDown: if nothing selected, select first row; else select next row
+  - ArrowUp: if nothing selected, select last row; else select previous row
+  - Keep selection in bounds
+- After changing selection, ensure the selected row is scrolled into view:
+  - Add `data-row-index` attribute to table rows in `PurchaseProductTable`
+  - On selection change, call `scrollIntoView({ block: 'nearest' })`
 
-C) SKUCreateInline during purchase
-- When creating a new product+variant inline, require both:
-  - Selling price (mandatory)
-  - Purchase cost (mandatory)
-- Immediately show margin% preview as user types.
+2) Enter: focus the right-side editor
+- Add a ref-based focus API from `PurchaseEntryForm`:
+  - Convert `PurchaseEntryForm` to `forwardRef`
+  - Expose `focusEditor()` via `useImperativeHandle`
+  - `focusEditor()` focuses the most useful field:
+    - If no SKU selected: focuses “Search / select product” input (opens dialog on click), or a dedicated “Search” button
+    - If SKU selected: focuses “Purchase Qty” input
+- Purchases key handler: Enter → call `entryFormRef.current?.focusEditor()`
 
-3) Sales billing behavior (snapshot cost for accurate profit)
-- When adding an item to cart in Sales:
-  - Set `invoice_items.cost_price` from SKU’s current purchase_* price:
-    - fixed: cost_price = sku.purchase_fixed_price
-    - per_metre: cost_price = sku.purchase_rate
-- When creating the sales invoice items, insert `cost_price` into `invoice_items`.
-- This gives accurate “profit per day” even if cost changes later.
+3) Delete/Backspace: delete selected row with confirmation
+- Add confirmation modal state in `PurchaseBillingRevamped.tsx`:
+  - `confirmDeleteOpen`, `pendingDeleteIndex`
+- Replace direct delete calls with `requestDelete(index)`:
+  - Clicking trash icon → `requestDelete(index)`
+  - Pressing Delete/Backspace → if selectedRowIndex !== null → `requestDelete(selectedRowIndex)`
+- Use `AlertDialog` to confirm:
+  - Title: “Remove item?”
+  - Description: “This will remove the selected item from the purchase list.”
+  - Buttons: Cancel / Remove (destructive)
+  - On confirm: call existing `handleDeleteRow(index)`
 
-Reporting changes (daily profit)
-- Expand `Reports` page with a “Daily Profit” section:
-  - Date picker (default = today)
-  - Summary cards:
-    - Total Sales (revenue)
-    - Total Cost (COGS)
-    - Profit
-    - Profit %
-- Query logic:
-  - Fetch completed sale invoices for selected day, join invoice_items.
-  - Revenue:
-    - Use invoice_items.line_total sum.
-  - Cost:
-    - For each invoice item:
-      - if cost_price is present, use it
-      - else fallback to SKU current purchase_* (for old invoices)
-    - cost total = cost_price * qty OR cost_price * length_metres depending on price_type.
-  - Profit = revenue - cost.
-- This will not include returns/cancelled invoices by default. (Returns are negative invoices; we can add a toggle later if needed.)
+4) Ctrl+K from Purchases (consistent with global palette)
+- On Purchases screen, Ctrl+K will open the global command palette.
+- The palette will include an “Add item (Search SKU)” action as the first item when on `/purchases`.
+- Selecting it will trigger opening the SKU search dialog (next step).
 
-Security / validation notes
-- Client-side validation with zod stays in place.
-- The backend function `complete_purchase_invoice` should also defensively validate:
-  - cost > 0
-  - sell_price > 0 only when selling is missing (optional but recommended for integrity)
+C) Make SKU search openable from outside PurchaseEntryForm
+Problem: `showSKUSearch` is local state inside `PurchaseEntryForm`, so the parent can’t open it.
 
-Implementation sequence (safe + incremental)
-1) Database migration:
-   - Add new columns to `skus` and `invoice_items`
-   - Update triggers to sync purchase prices
-   - Update `complete_purchase_invoice` logic to store cost into purchase_* fields and only set selling price if missing
-   - Optional backfill purchase_* for existing SKUs
-2) Update `useSKUs` TypeScript type + fetching to include new fields.
-3) Update Purchase UI:
-   - BillItemRow purchase mode: add Selling price input + margin display + (optional) margin-to-selling calculator
-   - PurchaseBilling validation: enforce rules
-   - SKUCreateInline: require both cost + selling (and show margin)
-4) Update Sales flow:
-   - Set `cost_price` snapshot for sales invoice items and insert into DB
-5) Update Reports page:
-   - Add daily profit section and calculations
-   - Add fallback logic for old data
-6) QA checklist:
-   - Purchase bill cannot complete if cost is missing/0
-   - If SKU selling price missing, purchase bill cannot complete without entering selling price
-   - Selling price is not overwritten by purchase once already set
-   - Sales invoice items store cost_price and profit report matches expectations
+Solution
+1) Lift SKU search open state to the parent (`PurchaseBillingRevamped.tsx`):
+- Add state: `skuSearchOpen`
+- Pass down to `PurchaseEntryForm` as:
+  - `skuSearchOpen`
+  - `setSkuSearchOpen`
+- Update `PurchaseEntryForm`:
+  - Remove local `showSKUSearch` state
+  - Use props to control `SKUSearchDialog open`
+2) Hook it to the global command palette action:
+- When user selects “Add item (Search SKU)” from palette and route is `/purchases`:
+  - Close palette
+  - Set `skuSearchOpen` to true
+  - (Optionally) clear current draft selection or keep as-is based on current behavior
 
-Files/areas that will be touched (expected)
-- Backend migration SQL (schema + function updates)
-- `src/hooks/useSKUs.tsx` (SKU type + fetch)
-- `src/hooks/useBilling.tsx` (addToCart + insert invoice items with cost_price/sell_price)
-- `src/components/billing/BillItemRow.tsx` (purchase UI: 2 price fields + margin)
-- `src/pages/PurchaseBilling.tsx` (validation rules + pass-through sell_price)
-- `src/components/billing/SKUCreateInline.tsx` (collect both prices + margin)
-- `src/pages/Reports.tsx` (daily profit report UI + query)
+D) Shortcut hints on hover (icons shown on hover)
+Goal: “small icon on buttons or anywhere where shortcut is applied should be displayed on hover”
 
-Acceptance criteria (what you should see)
-- In Purchase:
-  - Each item shows Cost and Selling fields
-  - Margin% shows instantly
-  - You cannot finish purchase without valid cost, and selling is required if product has no selling price yet
-- In Sales:
-  - Selling price stays as before
-  - Profit report shows correct numbers for the day
-- In Reports:
-  - “Daily Profit” section shows Sales, Cost, Profit, Profit% for selected date
+Implementation
+1) Create a tiny reusable UI helper component (new file):
+- Example: `src/components/ui/shortcut-hint.tsx`
+- API:
+  - `ShortcutHint` wraps children and shows a tooltip on hover/focus
+  - Props: `label`, `keys` (e.g. “Ctrl+K”), `icon` (optional)
+- Tooltip content format:
+  - Line 1: action label
+  - Line 2: a “kbd-like” display (Tailwind: rounded border bg-muted px-1.5 font-mono text-xs)
+2) Apply to key UI elements:
+- Purchases:
+  - Trash icon button (tooltip: “Remove item”, keys: “Del”)
+  - Search button / barcode button (tooltip: “Search items”, keys: “Ctrl+K” then Enter, or “Ctrl+K”)
+  - Add to Cart (tooltip: “Add to cart”, keys: “Enter” if we add it later; for now keep hover text only)
+- Global:
+  - Optional: add a small tooltip on the main app header area (or a help icon) showing “Command palette: Ctrl+K”
+
+E) Test plan (end-to-end)
+1) Go to Purchases:
+- Add 3 items
+- Click a row, press Up/Down → selection moves and stays visible
+- Press Enter → focus moves to the right editor inputs
+- Press Delete → confirmation appears; Cancel keeps item; Remove deletes it
+2) Global:
+- From Dashboard, press Ctrl+K → palette opens
+- Choose “New Sales Bill” → navigates to /sales
+- Press Ctrl+K again → choose “New Purchase Bill” → navigates to /purchases
+- On /purchases, Ctrl+K → first action “Add item (Search SKU)” → opens SKU search dialog
+3) Hover hints:
+- Hover delete/search related buttons → see tooltip with the shortcut keys
+
+Files expected to change
+- Global command palette:
+  - `src/components/layout/AppLayout.tsx` (mount palette + key listener)
+  - `src/components/ui/shortcut-hint.tsx` (new helper component)
+- Purchases keyboard shortcuts + confirmation:
+  - `src/pages/PurchaseBillingRevamped.tsx`
+  - `src/components/purchase/PurchaseProductTable.tsx` (row attributes + minor support)
+  - `src/components/purchase/PurchaseEntryForm.tsx` (lift dialog state + focus ref API)
+
+Notes / safeguards
+- We will not trigger shortcuts when typing in inputs.
+- We will not allow Delete to remove without confirmation (as you requested).
+- We’ll keep the implementation consistent with existing patterns (Radix Dialog/AlertDialog, existing cmdk wrapper).
+

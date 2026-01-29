@@ -51,18 +51,8 @@ export function CustomerQuickViewPanel({ customer, onRefreshCustomerList }: Cust
     const load = async () => {
       setIsLoading(true);
       try {
-        const { data, error } = await supabase
-          .from('customer_ledger')
-          .select(
-            'id, created_at, entry_type, reference_id, reference_label, debit_amount, credit_amount, running_balance'
-          )
-          .eq('customer_id', customer.id)
-          .order('created_at', { ascending: false })
-          .order('id', { ascending: false })
-          .range(0, PAGE_SIZE - 1);
-
-        if (error) throw error;
-        if (!cancelled) setRows((data || []) as LedgerRow[]);
+        // Ledger view not implemented yet - show empty state
+        if (!cancelled) setRows([]);
       } catch (e) {
         console.error('Failed to load quick ledger preview:', e);
         if (!cancelled) setRows([]);
@@ -106,19 +96,8 @@ export function CustomerQuickViewPanel({ customer, onRefreshCustomerList }: Cust
 
   const handlePaymentSuccess = async () => {
     await onRefreshCustomerList();
-    // reload preview list
-    if (customer?.id) {
-      const { data } = await supabase
-        .from('customer_ledger')
-        .select(
-          'id, created_at, entry_type, reference_id, reference_label, debit_amount, credit_amount, running_balance'
-        )
-        .eq('customer_id', customer.id)
-        .order('created_at', { ascending: false })
-        .order('id', { ascending: false })
-        .range(0, PAGE_SIZE - 1);
-      setRows((data || []) as LedgerRow[]);
-    }
+    // Reload would happen here when ledger is implemented
+    setRows([]);
   };
 
   if (!customer) {
@@ -139,9 +118,6 @@ export function CustomerQuickViewPanel({ customer, onRefreshCustomerList }: Cust
             {customer.city ? ` • ${customer.city}` : ''}
           </div>
           <div className="flex flex-wrap gap-2 mt-2">
-            {Number(customer.advance_balance || 0) > 0 && (
-              <Badge variant="secondary">Advance ₹{Number(customer.advance_balance || 0).toFixed(0)}</Badge>
-            )}
             {Number(customer.outstanding_balance || 0) > 0 && (
               <Badge variant="destructive">Due ₹{Number(customer.outstanding_balance || 0).toFixed(0)}</Badge>
             )}
@@ -152,8 +128,7 @@ export function CustomerQuickViewPanel({ customer, onRefreshCustomerList }: Cust
           <Button
             variant="outline"
             onClick={() => setShowReceivePayment(true)}
-            disabled={customer.is_deleted}
-            title={customer.is_deleted ? 'Customer is archived' : 'Receive payment'}
+            title="Receive payment"
           >
             <Wallet className="w-4 h-4 mr-2" />
             Receive Payment
@@ -162,14 +137,8 @@ export function CustomerQuickViewPanel({ customer, onRefreshCustomerList }: Cust
           <Button
             variant="outline"
             onClick={() => setShowAdvanceRefund(true)}
-            disabled={customer.is_deleted || Number(customer.advance_balance || 0) <= 0}
-            title={
-              customer.is_deleted
-                ? 'Customer is archived'
-                : Number(customer.advance_balance || 0) <= 0
-                  ? 'No advance to refund'
-                  : 'Refund advance'
-            }
+            disabled
+            title="Feature not yet implemented"
           >
             Refund Advance
           </Button>

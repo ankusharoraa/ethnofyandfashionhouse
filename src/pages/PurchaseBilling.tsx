@@ -91,12 +91,8 @@ export default function PurchaseBilling() {
 
     const existingBase = baseSkus.find((s) => s.name.trim().toLowerCase() === baseName.toLowerCase());
 
-    const { data: barcode, error } = await supabase.rpc('generate_unique_barcode', { p_prefix: 'BC' });
-    if (error) {
-      console.error('Failed to generate barcode:', error);
-      toast({ title: 'Error', description: 'Failed to generate barcode', variant: 'destructive' });
-      return null;
-    }
+    // Generate unique barcode
+    const barcode = `BC${Date.now()}${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
 
     const base =
       existingBase ||

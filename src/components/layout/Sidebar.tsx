@@ -4,6 +4,7 @@ import {
   Home,
   Package,
   QrCode,
+  Barcode,
   BarChart3,
   Settings,
   FolderOpen,
@@ -28,6 +29,7 @@ import {
 const navItems = [
   { icon: Home, label: 'Dashboard', href: '/dashboard' },
   { icon: Package, label: 'Inventory', href: '/inventory' },
+  { icon: Barcode, label: 'Barcode Printing', href: '/barcode-printing' },
   { icon: TrendingUp, label: 'Sales', href: '/sales' },
   { icon: TrendingDown, label: 'Purchases', href: '/purchases' },
   { icon: User, label: 'Customers', href: '/customers' },
