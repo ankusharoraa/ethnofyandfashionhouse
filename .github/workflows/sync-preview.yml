@@ -24,8 +24,8 @@ jobs:
 
       - name: Commit changes to preview branch
         run: |
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
+          git config user.name "Ankush Arora"
+          git config user.email "prat9912@gmail.com"
 
           git add .
           git commit -m "Preview sync repoB into repoA" || echo "No changes"
