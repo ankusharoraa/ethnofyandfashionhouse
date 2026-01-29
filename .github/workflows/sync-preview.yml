@@ -29,10 +29,12 @@ jobs:
       # Sync repoB -> repoA (on sync-from-repoB branch)
       - name: Sync repoB into repoA
         run: |
-          rsync -av --delete \
+          rsync -av \
             --exclude='.git' \
             --exclude='.github' \
             repoB/ ./
+            - name: Sync repoB into repoA (preview branch)
+
 
       # Commit & push ONLY to the new branch
       - name: Commit changes to sync branch
