@@ -8,40 +8,34 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # Checkout repoA (default branch)
       - name: Checkout repoA
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      # Create and switch to a new branch in repoA
       - name: Create sync branch
         run: |
           git checkout -B sync-from-repoB
 
-      # Checkout repoB into a subfolder
       - name: Checkout repoB
         uses: actions/checkout@v4
         with:
           repository: ankusharoraa/remix-of-suit-stock-simple-backup2
           path: repoB
 
-      # Sync repoB -> repoA (on sync-from-repoB branch)
       - name: Sync repoB into repoA
         run: |
+          # Non-destructive sync (no deletes)
           rsync -av \
             --exclude='.git' \
             --exclude='.github' \
             repoB/ ./
-            - name: Sync repoB into repoA (preview branch)
 
-
-      # Commit & push ONLY to the new branch
       - name: Commit changes to sync branch
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
 
           git add .
-          git commit -m "Sync repoB into repoA" || echo "No changes"
+          git commit -m "Sync repoB into repoA preview" || echo "No changes"
           git push -u origin sync-from-repoB
