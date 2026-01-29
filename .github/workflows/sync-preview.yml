@@ -8,24 +8,32 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repoA (sync-preview branch)
+      # Checkout repoA (current repo, sync-preview branch)
+      - name: Checkout repoA
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Clone repoB
-        run: |
-          git clone https://github.com/ankusharoraa/remix-of-suit-stock-simple-backup2.git
+      # Checkout repoB safely using GitHub token
+      - name: Checkout repoB
+        uses: actions/checkout@v4
+        with:
+          repository: ankusharoraa/remix-of-suit-stock-simple-backup2
+          path: repoB
 
+      # Sync repoB -> repoA (preview branch)
       - name: Sync repoB into repoA (preview branch)
         run: |
           rsync -av --delete \
             --exclude='.git' \
             --exclude='.github' \
-            /tmp/repoB/ ./
+            repoB/ ./
 
+      # Commit changes (ONLY to preview branch)
       - name: Commit changes to preview branch
         run: |
-          git config user.name "Ankush Arora"
-          git config user.email "prat9912@gmail.com"
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
 
           git add .
           git commit -m "Preview sync repoB into repoA" || echo "No changes"
