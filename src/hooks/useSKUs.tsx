@@ -11,6 +11,7 @@ export interface SKU {
   parent_sku_id?: string | null;
   color?: string | null;
   base_name?: string | null;
+  // Kept for backward compatibility with existing DB column, but intentionally unused in UI.
   name_hindi: string | null;
   description: string | null;
   category_id: string | null;
@@ -24,7 +25,11 @@ export interface SKU {
   length_metres: number;
   low_stock_threshold: number;
   image_url: string | null;
+  hsn_code?: string | null;
+  gst_rate?: number;
   sync_status: 'synced' | 'pending' | 'offline';
+  created_by?: string | null;
+  updated_by?: string | null;
   created_at: string;
   updated_at: string;
   is_deleted?: boolean;
@@ -121,7 +126,8 @@ export function useSKUs() {
       parent_sku_id: sku.parent_sku_id ?? null,
       color: sku.color ?? null,
       base_name: sku.base_name ?? null,
-      name_hindi: sku.name_hindi,
+      // We no longer capture Hindi name in the UI; keep existing DB values intact by inserting null.
+      name_hindi: null,
       description: sku.description,
       category_id: sku.category_id,
       subcategory_id: sku.subcategory_id,
@@ -133,6 +139,8 @@ export function useSKUs() {
       quantity: sku.quantity || 0,
       length_metres: sku.length_metres || 0,
       low_stock_threshold: sku.low_stock_threshold || 5,
+      hsn_code: sku.hsn_code ?? null,
+      gst_rate: sku.gst_rate ?? 0,
       created_by: user?.id,
       updated_by: user?.id,
     };
@@ -166,10 +174,14 @@ export function useSKUs() {
   };
 
   const updateSKU = async (id: string, updates: Partial<SKU>) => {
+    // Avoid overwriting existing Hindi name (we don't edit it anymore).
+    // If something explicitly passes name_hindi we still ignore it.
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { name_hindi, ...safeUpdates } = updates as any;
     const { data, error } = await supabase
       .from('skus')
       .update({
-        ...updates,
+        ...safeUpdates,
         updated_by: user?.id,
       })
       .eq('id', id)
@@ -199,24 +211,16 @@ export function useSKUs() {
   };
 
   const deleteSKU = async (id: string) => {
-    const { data, error } = await supabase
-      .rpc('soft_delete_sku', { p_sku_id: id });
+    const { error } = await supabase
+      .from('skus')
+      .delete()
+      .eq('id', id);
 
     if (error) {
       console.error('Error deleting SKU:', error);
       toast({
         title: 'Error',
         description: error.message || 'Failed to delete SKU',
-        variant: 'destructive',
-      });
-      return false;
-    }
-
-    const result = data as { success: boolean; error?: string };
-    if (result && !result.success) {
-      toast({
-        title: 'Error',
-        description: result.error || 'Failed to delete SKU',
         variant: 'destructive',
       });
       return false;

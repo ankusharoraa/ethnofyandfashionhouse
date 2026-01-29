@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from './useAuth';
 import type { SKU } from './useSKUs';
+import { normalizeState, calcInclusiveLine, splitGst, clampGstRate } from '@/lib/gst';
 
 export type InvoiceStatus = 'draft' | 'completed' | 'cancelled';
 export type PaymentMethod = 'cash' | 'upi' | 'card' | 'credit';
@@ -20,6 +21,12 @@ export interface InvoiceItem {
   length_metres: number;
   unit_price: number;
   line_total: number;
+  hsn_code?: string | null;
+  gst_rate?: number;
+  taxable_value?: number;
+  cgst_amount?: number;
+  sgst_amount?: number;
+  igst_amount?: number;
   // Snapshot pricing for profit reporting
   cost_price?: number | null;
   sell_price?: number | null;
@@ -41,10 +48,16 @@ export interface Invoice {
   subtotal: number;
   discount_amount: number;
   tax_amount: number;
+  cgst_amount?: number;
+  sgst_amount?: number;
+  igst_amount?: number;
+  gst_pricing_mode?: string;
+  place_of_supply_state?: string | null;
+  customer_gstin?: string | null;
+  supplier_gstin?: string | null;
   total_amount: number;
   amount_paid: number;
   pending_amount: number;
-  advance_applied: number;
   returned_amount: number;
   payment_method: PaymentMethod;
   status: InvoiceStatus;
@@ -166,6 +179,8 @@ export function useBilling() {
         line_total: sku.price_type === 'per_metre' ? unitPrice * len : unitPrice * qty,
         cost_price: snapshotCost,
         sku,
+        hsn_code: (sku as any).hsn_code ?? null,
+        gst_rate: Number((sku as any).gst_rate ?? 0),
         availableStock,
       };
       
@@ -204,14 +219,67 @@ export function useBilling() {
 
   // Calculate totals
   const calculateTotals = useCallback(() => {
-    const subtotal = cartItems.reduce((sum, item) => sum + item.line_total, 0);
+    const grossTotal = cartItems.reduce((sum, item) => sum + item.line_total, 0);
+
+    // Inclusive GST: taxable value is derived from gross.
+    const taxableSubtotal = cartItems.reduce((sum, item) => {
+      const r = clampGstRate(Number(item.gst_rate ?? (item.sku as any)?.gst_rate ?? 0));
+      const { taxableValue } = calcInclusiveLine({ grossAmount: item.line_total, gstRate: r });
+      return sum + taxableValue;
+    }, 0);
+
+    const taxAmount = Math.max(0, grossTotal - taxableSubtotal);
+
     return {
-      subtotal,
+      subtotal: taxableSubtotal,
       discountAmount: 0,
-      taxAmount: 0,
-      totalAmount: subtotal,
+      taxAmount,
+      totalAmount: grossTotal,
     };
   }, [cartItems]);
+
+  const fetchShopState = async (): Promise<string | null> => {
+    const { data, error } = await supabase
+      .from('shop_settings')
+      .select('state')
+      .limit(1)
+      .maybeSingle();
+    if (error) return null;
+    return normalizeState((data as any)?.state ?? null);
+  };
+
+  const fetchPartyTaxInfo = async (opts: {
+    customerId?: string;
+    supplierId?: string;
+  }): Promise<{ placeOfSupplyState: string | null; customerGstin: string | null; supplierGstin: string | null }> => {
+    if (opts.customerId) {
+      const { data } = await supabase
+        .from('customers')
+        .select('state,gstin')
+        .eq('id', opts.customerId)
+        .maybeSingle();
+      return {
+        placeOfSupplyState: normalizeState((data as any)?.state ?? null),
+        customerGstin: ((data as any)?.gstin ?? null) ? String((data as any).gstin).toUpperCase() : null,
+        supplierGstin: null,
+      };
+    }
+
+    if (opts.supplierId) {
+      const { data } = await supabase
+        .from('suppliers')
+        .select('state,gstin')
+        .eq('id', opts.supplierId)
+        .maybeSingle();
+      return {
+        placeOfSupplyState: normalizeState((data as any)?.state ?? null),
+        customerGstin: null,
+        supplierGstin: ((data as any)?.gstin ?? null) ? String((data as any).gstin).toUpperCase() : null,
+      };
+    }
+
+    return { placeOfSupplyState: null, customerGstin: null, supplierGstin: null };
+  };
 
   // Create draft invoice (sales or purchase)
   const createDraftInvoice = async (
@@ -237,6 +305,35 @@ export function useBilling() {
     
     const invoiceNumber = await generateInvoiceNumber();
     const totals = calculateTotals();
+
+    const [shopState, party] = await Promise.all([
+      fetchShopState(),
+      fetchPartyTaxInfo({ customerId, supplierId }),
+    ]);
+
+    const placeOfSupply = party.placeOfSupplyState;
+    const isInterState = !!shopState && !!placeOfSupply && shopState !== placeOfSupply;
+
+    // Compute invoice-level GST split and per-line snapshot fields.
+    const computedLines = cartItems.map((item) => {
+      const gstRate = clampGstRate(Number(item.gst_rate ?? (item.sku as any)?.gst_rate ?? 0));
+      const { taxableValue, gstAmount } = calcInclusiveLine({ grossAmount: item.line_total, gstRate });
+      const split = splitGst(isInterState, gstAmount);
+      return {
+        item,
+        gstRate,
+        taxableValue,
+        ...split,
+      };
+    });
+
+    const taxableSubtotal = computedLines.reduce((s, l) => s + l.taxableValue, 0);
+    const taxAmount = computedLines.reduce((s, l) => s + (l.cgst + l.sgst + l.igst), 0);
+    const cgstAmount = computedLines.reduce((s, l) => s + l.cgst, 0);
+    const sgstAmount = computedLines.reduce((s, l) => s + l.sgst, 0);
+    const igstAmount = computedLines.reduce((s, l) => s + l.igst, 0);
+
+    const totalAmount = cartItems.reduce((sum, it) => sum + it.line_total, 0);
     
     const { data: invoice, error: invoiceError } = await supabase
       .from('invoices')
@@ -248,10 +345,17 @@ export function useBilling() {
         customer_phone: customerPhone || null,
         supplier_id: supplierId || null,
         supplier_name: supplierName || null,
-        subtotal: totals.subtotal,
+        subtotal: taxableSubtotal,
         discount_amount: totals.discountAmount,
-        tax_amount: totals.taxAmount,
-        total_amount: totals.totalAmount,
+        tax_amount: taxAmount,
+        cgst_amount: cgstAmount,
+        sgst_amount: sgstAmount,
+        igst_amount: igstAmount,
+        gst_pricing_mode: 'inclusive',
+        place_of_supply_state: placeOfSupply,
+        customer_gstin: party.customerGstin,
+        supplier_gstin: party.supplierGstin,
+        total_amount: totalAmount,
         status: 'draft',
         created_by: session.user.id,
       })
@@ -271,7 +375,7 @@ export function useBilling() {
     }
 
     // Insert invoice items
-    const itemsToInsert = cartItems.map(item => ({
+    const itemsToInsert = computedLines.map(({ item, gstRate, taxableValue, cgst, sgst, igst }) => ({
       invoice_id: invoice.id,
       sku_id: item.sku_id,
       sku_code: item.sku_code,
@@ -284,6 +388,12 @@ export function useBilling() {
       line_total: item.line_total,
       cost_price: item.cost_price ?? null,
       sell_price: item.sell_price ?? null,
+      hsn_code: item.hsn_code ?? (item.sku as any)?.hsn_code ?? null,
+      gst_rate: gstRate,
+      taxable_value: taxableValue,
+      cgst_amount: cgst,
+      sgst_amount: sgst,
+      igst_amount: igst,
     }));
 
     const { error: itemsError } = await supabase

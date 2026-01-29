@@ -64,9 +64,7 @@ export function SKUCard({ sku, onEdit, onDelete, onClick, showActions = true }: 
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
                 <h3 className="font-semibold text-foreground truncate">{sku.name}</h3>
-                {sku.name_hindi && (
-                  <p className="text-sm text-muted-foreground hindi truncate">{sku.name_hindi}</p>
-                )}
+                {/* Hindi name intentionally hidden to keep UI concise */}
               </div>
               
               {isLowStock && (

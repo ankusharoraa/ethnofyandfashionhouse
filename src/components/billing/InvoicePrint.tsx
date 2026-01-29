@@ -13,6 +13,12 @@ interface InvoicePrintProps {
 export const InvoicePrint = forwardRef<HTMLDivElement, InvoicePrintProps>(
   ({ invoice, shopSettings, invoiceType = 'sale', supplierName }, ref) => {
     const items = invoice.invoice_items || [];
+    const cgst = Number((invoice as any).cgst_amount ?? 0);
+    const sgst = Number((invoice as any).sgst_amount ?? 0);
+    const igst = Number((invoice as any).igst_amount ?? 0);
+    const placeOfSupply = (invoice as any).place_of_supply_state as string | null | undefined;
+    const customerGstin = (invoice as any).customer_gstin as string | null | undefined;
+    const supplierGstin = (invoice as any).supplier_gstin as string | null | undefined;
 
     return (
       <div ref={ref} className="bg-white text-black p-8 max-w-[800px] mx-auto print:p-4">
@@ -57,11 +63,13 @@ export const InvoicePrint = forwardRef<HTMLDivElement, InvoicePrintProps>(
             <p><strong>Invoice No:</strong> {invoice.invoice_number}</p>
             <p><strong>Date:</strong> {format(new Date(invoice.created_at), 'dd/MM/yyyy')}</p>
             <p><strong>Time:</strong> {format(new Date(invoice.created_at), 'hh:mm a')}</p>
+            {placeOfSupply && <p><strong>Place of Supply:</strong> {placeOfSupply}</p>}
           </div>
           <div className="text-right">
             {invoiceType === 'purchase' ? (
               <>
                 <p><strong>Supplier:</strong> {supplierName || 'N/A'}</p>
+                {supplierGstin && <p><strong>GSTIN:</strong> {supplierGstin}</p>}
               </>
             ) : (
               <>
@@ -69,6 +77,7 @@ export const InvoicePrint = forwardRef<HTMLDivElement, InvoicePrintProps>(
                 {invoice.customer_phone && (
                   <p><strong>Phone:</strong> {invoice.customer_phone}</p>
                 )}
+                {customerGstin && <p><strong>GSTIN:</strong> {customerGstin}</p>}
               </>
             )}
             <p><strong>Payment:</strong> {invoice.payment_method.toUpperCase()}</p>
@@ -82,17 +91,26 @@ export const InvoicePrint = forwardRef<HTMLDivElement, InvoicePrintProps>(
               <th className="border border-black p-2 text-left">#</th>
               <th className="border border-black p-2 text-left">Item</th>
               <th className="border border-black p-2 text-left">SKU</th>
+              <th className="border border-black p-2 text-left">HSN</th>
               <th className="border border-black p-2 text-center">Qty/Mtrs</th>
               <th className="border border-black p-2 text-right">Rate</th>
+              <th className="border border-black p-2 text-right">Taxable</th>
+              <th className="border border-black p-2 text-right">GST%</th>
               <th className="border border-black p-2 text-right">Amount</th>
             </tr>
           </thead>
           <tbody>
             {items.map((item, index) => (
+              (() => {
+                const taxable = Number((item as any).taxable_value ?? 0);
+                const gstRate = Number((item as any).gst_rate ?? 0);
+                const hsn = ((item as any).hsn_code ?? '') as string;
+                return (
               <tr key={item.id || index}>
                 <td className="border border-black p-2">{index + 1}</td>
                 <td className="border border-black p-2">{item.sku_name}</td>
                 <td className="border border-black p-2 font-mono text-xs">{item.sku_code}</td>
+                <td className="border border-black p-2 font-mono text-xs">{hsn || '-'}</td>
                 <td className="border border-black p-2 text-center">
                   {item.price_type === 'per_metre'
                     ? `${item.length_metres} m`
@@ -102,10 +120,16 @@ export const InvoicePrint = forwardRef<HTMLDivElement, InvoicePrintProps>(
                   ₹{item.unit_price.toFixed(2)}
                   {item.price_type === 'per_metre' && '/m'}
                 </td>
+                <td className="border border-black p-2 text-right">
+                  ₹{taxable.toFixed(2)}
+                </td>
+                <td className="border border-black p-2 text-right">{gstRate.toFixed(0)}%</td>
                 <td className="border border-black p-2 text-right font-semibold">
                   ₹{item.line_total.toFixed(2)}
                 </td>
               </tr>
+                );
+              })()
             ))}
           </tbody>
         </table>
@@ -117,12 +141,6 @@ export const InvoicePrint = forwardRef<HTMLDivElement, InvoicePrintProps>(
               <span>Subtotal:</span>
               <span>₹{invoice.subtotal.toFixed(2)}</span>
             </div>
-            {invoice.advance_applied > 0 && (
-              <div className="flex justify-between py-1 border-b text-green-700">
-                <span>Advance Applied:</span>
-                <span>-₹{invoice.advance_applied.toFixed(2)}</span>
-              </div>
-            )}
             {invoice.discount_amount > 0 && (
               <div className="flex justify-between py-1 border-b text-green-700">
                 <span>Discount:</span>
@@ -130,10 +148,30 @@ export const InvoicePrint = forwardRef<HTMLDivElement, InvoicePrintProps>(
               </div>
             )}
             {invoice.tax_amount > 0 && (
-              <div className="flex justify-between py-1 border-b">
-                <span>Tax:</span>
-                <span>₹{invoice.tax_amount.toFixed(2)}</span>
-              </div>
+              <>
+                {cgst > 0 && (
+                  <div className="flex justify-between py-1 border-b">
+                    <span>CGST:</span>
+                    <span>₹{cgst.toFixed(2)}</span>
+                  </div>
+                )}
+                {sgst > 0 && (
+                  <div className="flex justify-between py-1 border-b">
+                    <span>SGST:</span>
+                    <span>₹{sgst.toFixed(2)}</span>
+                  </div>
+                )}
+                {igst > 0 && (
+                  <div className="flex justify-between py-1 border-b">
+                    <span>IGST:</span>
+                    <span>₹{igst.toFixed(2)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between py-1 border-b">
+                  <span>Total GST:</span>
+                  <span>₹{invoice.tax_amount.toFixed(2)}</span>
+                </div>
+              </>
             )}
             <div className="flex justify-between py-2 text-lg font-bold border-2 border-black mt-2 px-2">
               <span>TOTAL:</span>

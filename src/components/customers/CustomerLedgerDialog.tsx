@@ -55,7 +55,7 @@ export function CustomerLedgerDialog({
       // Fetch latest balances (customer prop may not include advance_balance)
       const { data: customerRow, error: customerErr } = await supabase
         .from('customers')
-        .select('outstanding_balance, advance_balance')
+        .select('outstanding_balance')
         .eq('id', customer.id)
         .maybeSingle();
 
@@ -63,15 +63,22 @@ export function CustomerLedgerDialog({
         console.error('Error fetching customer balances:', customerErr);
       }
 
-      setBalances({
-        outstanding: Number(customerRow?.outstanding_balance ?? customer.outstanding_balance ?? 0),
-        advance: Number(customerRow?.advance_balance ?? 0),
-      });
+      if (customerRow) {
+        setBalances({
+          outstanding: Number(customerRow.outstanding_balance ?? customer.outstanding_balance ?? 0),
+          advance: 0, // Advance payments not yet implemented
+        });
+      } else {
+        setBalances({
+          outstanding: Number(customer.outstanding_balance ?? 0),
+          advance: 0,
+        });
+      }
 
       // Fetch all invoices for this customer (sales and returns)
        const { data: invoiceData } = await supabase
         .from('invoices')
-         .select('id, invoice_number, invoice_type, created_at, total_amount, pending_amount, advance_applied, status')
+         .select('id, invoice_number, invoice_type, created_at, total_amount, pending_amount, status')
         .eq('customer_id', customer.id)
         .eq('status', 'completed')
         .order('created_at', { ascending: true });

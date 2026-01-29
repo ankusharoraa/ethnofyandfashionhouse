@@ -4,6 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Package, Ruler, Save, X, QrCode } from 'lucide-react';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import {
   Form,
   FormControl,
@@ -34,13 +35,20 @@ import type { SKU, Category, Subcategory } from '@/hooks/useSKUs';
 const skuSchema = z.object({
   sku_code: z.string().min(1, 'SKU code is required').max(50),
   barcode: z.string().max(100).optional().nullable(),
-  base_name: z.string().min(1, 'Design name is required').max(200),
-  color: z.string().min(1, 'Color is required').max(60),
-  name_hindi: z.string().max(200).optional().nullable(),
+  name: z.string().min(1, 'Product name is required').max(200),
   description: z.string().max(1000).optional().nullable(),
   category_id: z.string().optional().nullable(),
   subcategory_id: z.string().optional().nullable(),
+  hsn_code: z
+    .string()
+    .trim()
+    .max(20)
+    .optional()
+    .nullable(),
+  gst_rate: z.number().min(0).max(28).default(0),
   price_type: z.enum(['per_metre', 'fixed']),
+  purchase_rate: z.number().min(0).optional().nullable(),
+  purchase_fixed_price: z.number().min(0).optional().nullable(),
   rate: z.number().min(0).optional().nullable(),
   fixed_price: z.number().min(0).optional().nullable(),
   quantity: z.number().int().min(0).default(0),
@@ -79,13 +87,15 @@ export function SKUForm({
     defaultValues: {
       sku_code: '',
       barcode: '',
-      base_name: '',
-      color: '',
-      name_hindi: '',
+      name: '',
       description: '',
       category_id: null,
       subcategory_id: null,
+      hsn_code: '',
+      gst_rate: 0,
       price_type: 'fixed',
+      purchase_rate: null,
+      purchase_fixed_price: null,
       rate: null,
       fixed_price: null,
       quantity: 0,
@@ -109,18 +119,18 @@ export function SKUForm({
 
   useEffect(() => {
     if (sku) {
-      const baseName = sku.base_name || sku.name.replace(/\s*\([^)]+\)\s*$/, '');
-      const color = sku.color || (sku.name.match(/\(([^)]+)\)\s*$/)?.[1] ?? '');
       form.reset({
         sku_code: sku.sku_code,
         barcode: sku.barcode,
-        base_name: baseName,
-        color,
-        name_hindi: sku.name_hindi,
+        name: sku.name,
         description: sku.description,
         category_id: sku.category_id,
         subcategory_id: sku.subcategory_id,
+        hsn_code: (sku as any).hsn_code || '',
+        gst_rate: Number((sku as any).gst_rate ?? 0),
         price_type: sku.price_type,
+        purchase_rate: (sku as any).purchase_rate ?? null,
+        purchase_fixed_price: (sku as any).purchase_fixed_price ?? null,
         rate: sku.rate,
         fixed_price: sku.fixed_price,
         quantity: sku.quantity,
@@ -131,13 +141,15 @@ export function SKUForm({
       form.reset({
         sku_code: '',
         barcode: scannedBarcode || '',
-        base_name: '',
-        color: '',
-        name_hindi: '',
+        name: '',
         description: '',
         category_id: null,
         subcategory_id: null,
+        hsn_code: '',
+        gst_rate: 0,
         price_type: 'fixed',
+        purchase_rate: null,
+        purchase_fixed_price: null,
         rate: null,
         fixed_price: null,
         quantity: 0,
@@ -152,14 +164,18 @@ export function SKUForm({
     try {
       await onSubmit({
         ...data,
-        name: data.base_name, // DB trigger will format variant as "Name (Color)" when parent_sku_id is set
         category_id: data.category_id || null,
         subcategory_id: data.subcategory_id || null,
         barcode: data.barcode || null,
-        name_hindi: data.name_hindi || null,
         description: data.description || null,
+        hsn_code: data.hsn_code || null,
+        gst_rate: data.gst_rate ?? 0,
+        purchase_rate: data.price_type === 'per_metre' ? (data.purchase_rate ?? null) : null,
+        purchase_fixed_price: data.price_type === 'fixed' ? (data.purchase_fixed_price ?? null) : null,
         rate: data.price_type === 'per_metre' ? data.rate : null,
         fixed_price: data.price_type === 'fixed' ? data.fixed_price : null,
+        quantity: data.price_type === 'fixed' ? data.quantity : null,
+        length_metres: data.price_type === 'per_metre' ? data.length_metres : null,
       });
       onClose();
     } finally {
@@ -185,7 +201,7 @@ export function SKUForm({
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
-            {/* Basic Info */}
+            {/* Short form */}
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <FormField
@@ -229,62 +245,18 @@ export function SKUForm({
 
               <FormField
                 control={form.control}
-                name="base_name"
+                name="name"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Design Name *</FormLabel>
+                    <FormLabel>Product Name *</FormLabel>
                     <FormControl>
-                      <Input placeholder="e.g. Cotton Suit" {...field} />
+                      <Input placeholder="e.g. Cotton Suit - Maroon" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
 
-              <FormField
-                control={form.control}
-                name="color"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Color *</FormLabel>
-                    <FormControl>
-                      <Input placeholder="e.g. Maroon" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="name_hindi"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>
-                      <span>Name </span>
-                      <span className="hindi">(हिंदी)</span>
-                    </FormLabel>
-                    <FormControl>
-                      <Input placeholder="उत्पाद का नाम" className="hindi" {...field} value={field.value || ''} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="description"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Description</FormLabel>
-                    <FormControl>
-                      <Textarea placeholder="Product description..." {...field} value={field.value || ''} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
             </div>
 
             {/* Category Selection */}
@@ -344,6 +316,51 @@ export function SKUForm({
               />
             </div>
 
+            {/* GST */}
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="hsn_code"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>HSN / SAC</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g. 5208" {...field} value={field.value || ''} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="gst_rate"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>GST %</FormLabel>
+                    <Select
+                      value={String(field.value ?? 0)}
+                      onValueChange={(v) => field.onChange(Number(v))}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {[0, 5, 12, 18, 28].map((r) => (
+                          <SelectItem key={r} value={String(r)}>
+                            {r}%
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
             {/* Pricing */}
             <div className="space-y-4">
               <FormField
@@ -380,16 +397,16 @@ export function SKUForm({
                   >
                     <FormField
                       control={form.control}
-                      name="fixed_price"
+                      name="purchase_fixed_price"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Price (₹)</FormLabel>
+                          <FormLabel>Cost Price (₹/pc)</FormLabel>
                           <FormControl>
                             <Input
                               type="number"
                               placeholder="0.00"
                               {...field}
-                              value={field.value || ''}
+                              value={field.value ?? ''}
                               onChange={(e) => field.onChange(parseFloat(e.target.value) || null)}
                             />
                           </FormControl>
@@ -399,22 +416,19 @@ export function SKUForm({
                     />
                     <FormField
                       control={form.control}
-                      name="quantity"
+                      name="fixed_price"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Quantity</FormLabel>
+                          <FormLabel>Selling Price (₹/pc)</FormLabel>
                           <FormControl>
                             <Input
                               type="number"
-                              placeholder="0"
+                              placeholder="0.00"
                               {...field}
-                              onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
-                              disabled={sku && !allowStockEdit}
+                              value={field.value ?? ''}
+                              onChange={(e) => field.onChange(parseFloat(e.target.value) || null)}
                             />
                           </FormControl>
-                          {sku && !allowStockEdit && (
-                            <p className="text-xs text-muted-foreground">Stock managed via Purchases/Sales</p>
-                          )}
                           <FormMessage />
                         </FormItem>
                       )}
@@ -430,16 +444,16 @@ export function SKUForm({
                   >
                     <FormField
                       control={form.control}
-                      name="rate"
+                      name="purchase_rate"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Rate (₹/m)</FormLabel>
+                          <FormLabel>Cost Price (₹/m)</FormLabel>
                           <FormControl>
                             <Input
                               type="number"
                               placeholder="0.00"
                               {...field}
-                              value={field.value || ''}
+                              value={field.value ?? ''}
                               onChange={(e) => field.onChange(parseFloat(e.target.value) || null)}
                             />
                           </FormControl>
@@ -449,23 +463,19 @@ export function SKUForm({
                     />
                     <FormField
                       control={form.control}
-                      name="length_metres"
+                      name="rate"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Length (metres)</FormLabel>
+                          <FormLabel>Selling Price (₹/m)</FormLabel>
                           <FormControl>
                             <Input
                               type="number"
-                              step="0.1"
-                              placeholder="0.0"
+                              placeholder="0.00"
                               {...field}
-                              onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
-                              disabled={sku && !allowStockEdit}
+                              value={field.value ?? ''}
+                              onChange={(e) => field.onChange(parseFloat(e.target.value) || null)}
                             />
                           </FormControl>
-                          {sku && !allowStockEdit && (
-                            <p className="text-xs text-muted-foreground">Stock managed via Purchases/Sales</p>
-                          )}
                           <FormMessage />
                         </FormItem>
                       )}
@@ -473,26 +483,100 @@ export function SKUForm({
                   </motion.div>
                 )}
               </AnimatePresence>
-
-              <FormField
-                control={form.control}
-                name="low_stock_threshold"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Low Stock Alert Threshold</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        placeholder="5"
-                        {...field}
-                        onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
             </div>
+
+            <Accordion type="single" collapsible className="w-full">
+              <AccordionItem value="advanced">
+                <AccordionTrigger>Advanced</AccordionTrigger>
+                <AccordionContent>
+                  <div className="space-y-4">
+                    <FormField
+                      control={form.control}
+                      name="description"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Description</FormLabel>
+                          <FormControl>
+                            <Textarea placeholder="Product description..." {...field} value={field.value || ''} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <div className="grid grid-cols-2 gap-4">
+                      {priceType === 'fixed' ? (
+                        <FormField
+                          control={form.control}
+                          name="quantity"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Quantity</FormLabel>
+                              <FormControl>
+                                <Input
+                                  type="number"
+                                  placeholder="0"
+                                  {...field}
+                                  onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
+                                  disabled={sku && !allowStockEdit}
+                                />
+                              </FormControl>
+                              {sku && !allowStockEdit && (
+                                <p className="text-xs text-muted-foreground">Stock managed via Purchases/Sales</p>
+                              )}
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      ) : (
+                        <FormField
+                          control={form.control}
+                          name="length_metres"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Length (metres)</FormLabel>
+                              <FormControl>
+                                <Input
+                                  type="number"
+                                  step="0.1"
+                                  placeholder="0.0"
+                                  {...field}
+                                  onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+                                  disabled={sku && !allowStockEdit}
+                                />
+                              </FormControl>
+                              {sku && !allowStockEdit && (
+                                <p className="text-xs text-muted-foreground">Stock managed via Purchases/Sales</p>
+                              )}
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      )}
+
+                      <FormField
+                        control={form.control}
+                        name="low_stock_threshold"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Low Stock Alert Threshold</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                placeholder="5"
+                                {...field}
+                                onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
 
             {/* Actions */}
             <div className="flex gap-3 pt-4">

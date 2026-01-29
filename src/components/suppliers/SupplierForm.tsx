@@ -8,6 +8,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card } from '@/components/ui/card';
 import type { Supplier } from '@/hooks/useSuppliers';
 
+const GSTIN_REGEX = /^[0-9A-Z]{15}$/;
+
 interface SupplierFormProps {
   supplier?: Supplier | null;
   onSubmit: (data: Partial<Supplier>) => Promise<Supplier | null | void>;
@@ -22,6 +24,7 @@ export function SupplierForm({ supplier, onSubmit, onCancel }: SupplierFormProps
     email: '',
     address: '',
     city: '',
+    state: '',
     gstin: '',
     notes: '',
   });
@@ -36,6 +39,7 @@ export function SupplierForm({ supplier, onSubmit, onCancel }: SupplierFormProps
         email: supplier.email || '',
         address: supplier.address || '',
         city: supplier.city || '',
+        state: (supplier as any).state || '',
         gstin: supplier.gstin || '',
         notes: supplier.notes || '',
       });
@@ -44,6 +48,14 @@ export function SupplierForm({ supplier, onSubmit, onCancel }: SupplierFormProps
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    const trimmedGstin = formData.gstin.trim().toUpperCase();
+    if (trimmedGstin && !GSTIN_REGEX.test(trimmedGstin)) {
+      // Lightweight client-side validation to prevent bad data.
+      alert('Invalid GSTIN. It must be 15 characters (A-Z/0-9).');
+      return;
+    }
+
     setIsSubmitting(true);
     
     try {
@@ -54,7 +66,8 @@ export function SupplierForm({ supplier, onSubmit, onCancel }: SupplierFormProps
         email: formData.email || null,
         address: formData.address || null,
         city: formData.city || null,
-        gstin: formData.gstin || null,
+        state: formData.state || null,
+        gstin: trimmedGstin || null,
         notes: formData.notes || null,
       });
     } finally {
@@ -148,6 +161,16 @@ export function SupplierForm({ supplier, onSubmit, onCancel }: SupplierFormProps
                   maxLength={15}
                 />
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="state">State</Label>
+              <Input
+                id="state"
+                value={formData.state}
+                onChange={(e) => setFormData({ ...formData, state: e.target.value })}
+                placeholder="e.g. Rajasthan"
+              />
             </div>
 
             <div className="space-y-2">

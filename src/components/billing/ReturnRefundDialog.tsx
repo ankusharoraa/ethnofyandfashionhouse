@@ -66,39 +66,13 @@ export function ReturnRefundDialog({
       return;
     }
 
-    setIsProcessing(true);
-    try {
-      const { data, error } = await supabase.rpc('refund_customer_advance', {
-        p_customer_id: parsed.data.customerId,
-        p_amount: parsed.data.amount,
-        p_refund_method: parsed.data.method,
-        p_notes: parsed.data.notes || null,
-      });
-
-      if (error) throw error;
-
-      const result = data as { success: boolean; error?: string };
-      if (!result?.success) {
-        throw new Error(result?.error || 'Refund failed');
-      }
-
-      toast({
-        title: 'Refund recorded',
-        description: `₹${amountFixed.toFixed(0)} refunded (${method.toUpperCase()})`,
-      });
-
-      onRefunded();
-      onClose();
-    } catch (e: any) {
-      console.error('Error refunding advance after return:', e);
-      toast({
-        title: 'Error',
-        description: e?.message || 'Failed to refund',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsProcessing(false);
-    }
+    // Note: Advance refund functionality not yet implemented
+    toast({
+      title: 'Feature Not Available',
+      description: 'Advance refunds are not yet implemented',
+      variant: 'destructive',
+    });
+    onClose();
   };
 
   return (

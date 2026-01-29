@@ -29,6 +29,15 @@ const customerSchema = z.object({
   email: z.string().email('Invalid email').max(200).optional().nullable().or(z.literal('')),
   address: z.string().max(500).optional().nullable(),
   city: z.string().max(100).optional().nullable(),
+  state: z.string().max(100).optional().nullable(),
+  gstin: z
+    .string()
+    .trim()
+    .toUpperCase()
+    .regex(/^[0-9A-Z]{15}$/, 'GSTIN must be 15 characters (A-Z/0-9)')
+    .optional()
+    .nullable()
+    .or(z.literal('')),
   notes: z.string().max(1000).optional().nullable(),
 });
 
@@ -66,6 +75,8 @@ export function CustomerForm({ open, onClose, onSubmit, customer }: CustomerForm
         email: customer.email || '',
         address: customer.address || '',
         city: customer.city || '',
+        state: (customer as any).state || '',
+        gstin: ((customer as any).gstin || '').toUpperCase(),
         notes: customer.notes || '',
       });
     } else {
@@ -76,6 +87,8 @@ export function CustomerForm({ open, onClose, onSubmit, customer }: CustomerForm
         email: '',
         address: '',
         city: '',
+        state: '',
+        gstin: '',
         notes: '',
       });
     }
@@ -91,6 +104,8 @@ export function CustomerForm({ open, onClose, onSubmit, customer }: CustomerForm
         email: data.email || null,
         address: data.address || null,
         city: data.city || null,
+        state: data.state || null,
+        gstin: data.gstin ? data.gstin.toUpperCase() : null,
         notes: data.notes || null,
       });
       onClose();
@@ -197,6 +212,42 @@ export function CustomerForm({ open, onClose, onSubmit, customer }: CustomerForm
                 </FormItem>
               )}
             />
+
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="state"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>State</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g. Rajasthan" {...field} value={field.value || ''} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="gstin"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>GSTIN</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="22AAAAA0000A1Z5"
+                        {...field}
+                        value={field.value || ''}
+                        onChange={(e) => field.onChange(e.target.value.toUpperCase())}
+                        maxLength={15}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
 
             <FormField
               control={form.control}

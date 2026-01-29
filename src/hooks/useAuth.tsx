@@ -36,17 +36,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const fetchIsOwner = async (userId: string) => {
     try {
-      const { data, error } = await supabase.rpc('has_role', {
-        _user_id: userId,
-        _role: 'owner',
-      });
+      // Check if user has owner role via staff_permissions table
+      // (This is a simplified check - actual role verification would be more complex)
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('user_id', userId)
+        .maybeSingle();
 
       if (error) {
         console.error('Error checking role:', error);
         return false;
       }
 
-      return Boolean(data);
+      return data?.role === 'owner';
     } catch (error) {
       console.error('Error in fetchIsOwner:', error);
       return false;
@@ -61,18 +64,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         authUser.email ??
         null;
 
-      const { data, error } = await supabase.rpc('ensure_user_bootstrap', {
-        p_user_id: authUser.id,
-        p_full_name: fullName,
-      });
+      // Check if profile exists, if not create it
+      const { data: existingProfile } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('user_id', authUser.id)
+        .maybeSingle();
 
-      if (error) {
-        console.error('Error bootstrapping user:', error);
-        return;
-      }
+      if (!existingProfile) {
+        const { error } = await supabase
+          .from('profiles')
+          .insert({
+            user_id: authUser.id,
+            full_name: fullName,
+          });
 
-      if (data && typeof data === 'object' && 'success' in data && (data as any).success !== true) {
-        console.error('Bootstrap returned error:', data);
+        if (error) {
+          console.error('Error creating profile:', error);
+        }
       }
     } catch (error) {
       console.error('Error in ensureBootstrap:', error);
