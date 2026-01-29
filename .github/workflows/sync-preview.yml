@@ -1,0 +1,32 @@
+name: Preview sync from repoB
+
+on:
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repoA (sync-preview branch)
+        uses: actions/checkout@v4
+
+      - name: Clone repoB
+        run: |
+          git clone https://github.com/ankusharoraa/repoB.git /tmp/repoB
+
+      - name: Sync repoB into repoA (preview branch)
+        run: |
+          rsync -av --delete \
+            --exclude='.git' \
+            --exclude='.github' \
+            /tmp/repoB/ ./
+
+      - name: Commit changes to preview branch
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+
+          git add .
+          git commit -m "Preview sync repoB into repoA" || echo "No changes"
+          git push
