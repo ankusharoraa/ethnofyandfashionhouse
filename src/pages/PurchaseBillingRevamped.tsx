@@ -14,7 +14,7 @@ import { PurchaseEntryForm, type PurchaseEntryFormHandle } from '@/components/pu
  import type { Supplier } from '@/hooks/useSuppliers';
  import { calculateBillTotals, calculateLineDiscount, calculateLineTotal, applyMarginIfEnabled } from '@/lib/purchaseCalculations';
 import { allocateProportionalDiscount, calcInclusiveLine, normalizeState, splitGst, clampGstRate } from '@/lib/gst';
- import { useNavigate } from 'react-router-dom';
+ import { useLocation, useNavigate } from 'react-router-dom';
 import { useShopSettings } from '@/hooks/useShopSettings';
 import {
   AlertDialog,
@@ -30,6 +30,7 @@ import {
  export default function PurchaseBillingRevamped() {
    const { toast } = useToast();
    const navigate = useNavigate();
+    const location = useLocation();
    const { suppliers } = useSuppliers();
   const { user } = useAuth();
    const { settings: shopSettings } = useShopSettings();
@@ -55,6 +56,8 @@ import {
     const [pendingDeleteIndex, setPendingDeleteIndex] = useState<number | null>(null);
 
     const entryFormRef = useRef<PurchaseEntryFormHandle | null>(null);
+
+    const barcodePrefill = new URLSearchParams(location.search).get('barcode') || undefined;
  
    // Draft item state
    const [draft, setDraft] = useState<PurchaseItemDraft | null>(null);
@@ -107,17 +110,31 @@ import {
          // Initialize new draft with SKU
          const sku = value;
           const gstRate = clampGstRate(Number((sku as any).gst_rate ?? 0));
-          const initialLineGross = (sku.fixed_price || sku.rate || 0) * 1;
+           const initialPurchaseUnit = sku.price_type === 'per_metre'
+             ? ((sku as any).purchase_rate ?? 0)
+             : ((sku as any).purchase_fixed_price ?? 0);
+           const initialLineGross = Number(initialPurchaseUnit || 0) * 1;
           const { taxableValue } = calcInclusiveLine({ grossAmount: initialLineGross, gstRate });
+
+           const stockCurrent = sku.price_type === 'per_metre'
+             ? Number(sku.length_metres ?? 0)
+             : Number(sku.quantity ?? 0);
+
+           const mrpDefault = sku.price_type === 'per_metre'
+             ? Number(sku.rate ?? 0)
+             : Number(sku.fixed_price ?? 0);
+
           return {
            sku,
            purchase_qty: 1,
            unit: sku.price_type === 'per_metre' ? 'metre' : 'unit',
-           purchase_price: sku.fixed_price || sku.rate || 0,
+            // IMPORTANT: purchase_price defaults to COST price
+            purchase_price: Number(initialPurchaseUnit || 0),
            discount_type: null,
            discount_value: 0,
-           mrp: sku.fixed_price || sku.rate || 0,
-           stock_current: sku.quantity || sku.length_metres || 0,
+            // MRP defaults to SELLING price
+            mrp: Number(mrpDefault || 0),
+            stock_current: stockCurrent,
             taxable_amount: taxableValue,
          };
        }
@@ -603,6 +620,7 @@ import {
                marginWholesale={marginWholesale}
                 skuSearchOpen={skuSearchOpen}
                 setSkuSearchOpen={setSkuSearchOpen}
+                 initialBarcode={barcodePrefill}
                onDraftChange={handleDraftChange}
                onAddToTable={handleAddToTable}
                onClear={() => {

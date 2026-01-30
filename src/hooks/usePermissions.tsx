@@ -74,6 +74,22 @@ export function usePermissions() {
         return;
       }
 
+      // Fetch roles
+      const { data: roles, error: roleError } = await supabase
+        .from('user_roles')
+        .select('user_id, role');
+
+      if (roleError) {
+        console.error('Error fetching roles:', roleError);
+        return;
+      }
+
+      const roleByUserId = new Map<string, 'owner' | 'staff'>();
+      (roles || []).forEach((r: any) => {
+        if (r.role === 'owner') roleByUserId.set(r.user_id, 'owner');
+        else if (!roleByUserId.has(r.user_id)) roleByUserId.set(r.user_id, 'staff');
+      });
+
       // Map permissions to staff members
       const staffList: StaffMember[] = (profiles || []).map((profile) => {
         const userPermissions = (permissions || [])
@@ -85,7 +101,7 @@ export function usePermissions() {
           user_id: profile.user_id,
           full_name: profile.full_name,
           phone: profile.phone,
-          role: profile.role,
+          role: roleByUserId.get(profile.user_id) ?? 'staff',
           permissions: userPermissions,
         };
       });

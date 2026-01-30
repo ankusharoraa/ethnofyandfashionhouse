@@ -80,6 +80,8 @@ export function BarcodeActionsDialog({ open, onClose, sku }: BarcodeActionsDialo
   const [isWorking, setIsWorking] = useState(false);
 
   const barcodeValue = sku.barcode || "";
+  const stock = sku.price_type === 'per_metre' ? Number(sku.length_metres ?? 0) : Number(sku.quantity ?? 0);
+  const isOutOfStock = stock <= 0;
 
   const labelPng = useMemo(() => {
     if (!barcodeValue) return null;
@@ -192,12 +194,21 @@ export function BarcodeActionsDialog({ open, onClose, sku }: BarcodeActionsDialo
             <div className="rounded-lg border p-3">
               <div className="text-sm font-medium">{sku.name}</div>
               <div className="text-xs text-muted-foreground">{sku.sku_code}</div>
+              <div className="mt-1 text-xs text-muted-foreground">
+                Stock: {stock} {sku.price_type === 'per_metre' ? 'm' : 'pcs'}
+              </div>
               <div className="mt-3 flex justify-center">
                 <BarcodePreview value={sku.barcode} className="w-full" />
               </div>
             </div>
 
             <div className="text-xs text-muted-foreground">Value: {sku.barcode}</div>
+
+            {isOutOfStock && (
+              <div className="text-sm text-muted-foreground">
+                Barcodes can only be printed/downloaded when stock is greater than 0.
+              </div>
+            )}
           </div>
         )}
 
@@ -208,12 +219,12 @@ export function BarcodeActionsDialog({ open, onClose, sku }: BarcodeActionsDialo
           <Button
             variant="outline"
             onClick={handlePrint}
-            disabled={isWorking || !sku.barcode}
+            disabled={isWorking || !sku.barcode || isOutOfStock}
           >
             <Printer className="h-4 w-4 mr-2" />
             Print (A4)
           </Button>
-          <Button onClick={handleDownloadPdf} disabled={isWorking || !sku.barcode}>
+          <Button onClick={handleDownloadPdf} disabled={isWorking || !sku.barcode || isOutOfStock}>
             <Download className="h-4 w-4 mr-2" />
             Download (PDF)
           </Button>

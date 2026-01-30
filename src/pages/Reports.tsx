@@ -1,13 +1,24 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { StatsCard } from '@/components/dashboard/StatsCard';
-import { Card } from '@/components/ui/card';
 import { Package, AlertTriangle, TrendingUp, Ruler } from 'lucide-react';
 import { useSKUs } from '@/hooks/useSKUs';
+import { useAuth } from '@/hooks/useAuth';
+
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ReportsOverview } from '@/components/reports/ReportsOverview';
+import { ReportsCategories } from '@/components/reports/ReportsCategories';
+import { DeadStockPanel } from '@/components/reports/DeadStockPanel';
 import { ReportCharts } from '@/components/reports/ReportCharts';
+import { ProfitPerSkuPanel } from '@/components/reports/ProfitPerSkuPanel';
+import { PurchaseRecommendationsPanel } from '@/components/reports/PurchaseRecommendationsPanel';
 
 export default function Reports() {
   const { skus, categories, getLowStockItems } = useSKUs();
+  const { isOwner } = useAuth();
+  const [activeTab, setActiveTab] = useState<'overview' | 'graphs' | 'categories' | 'dead' | 'profit' | 'reorder'>(
+    'overview'
+  );
   
   const stats = useMemo(() => {
     const lowStock = getLowStockItems();
@@ -16,47 +27,72 @@ export default function Reports() {
     return { lowStock: lowStock.length, totalValue, totalMetres, totalItems: skus.length };
   }, [skus]);
 
-  const categoryStats = useMemo(() => {
-    return categories.map(c => ({
-      ...c,
-      count: skus.filter(s => s.category_id === c.id).length,
-      value: skus.filter(s => s.category_id === c.id).reduce((sum, s) => sum + (s.price_type === 'per_metre' ? (s.rate || 0) * s.length_metres : (s.fixed_price || 0) * s.quantity), 0)
-    }));
-  }, [skus, categories]);
-
-
   return (
     <AppLayout>
-      <h1 className="text-2xl font-bold mb-6">Reports</h1>
-      
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <StatsCard title="Total SKUs" value={stats.totalItems} icon={Package} />
-        <StatsCard title="Low Stock" value={stats.lowStock} icon={AlertTriangle} variant={stats.lowStock > 0 ? 'destructive' : 'default'} />
-        <StatsCard title="Total Value" value={`₹${stats.totalValue.toLocaleString('en-IN')}`} icon={TrendingUp} />
-        <StatsCard title="Total Metres" value={`${stats.totalMetres}m`} icon={Ruler} />
+      <div className="flex items-start justify-between gap-4 mb-4 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-bold">Reports</h1>
+          <p className="text-sm text-muted-foreground">Switch tabs to focus on one report at a time.</p>
+        </div>
       </div>
 
-      <div className="mb-8">
-        <ReportCharts />
-      </div>
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
+        <TabsList className="w-full justify-start">
+          <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="graphs">Graphs</TabsTrigger>
+          <TabsTrigger value="categories">Categories</TabsTrigger>
+          {isOwner && <TabsTrigger value="dead">Dead Stock</TabsTrigger>}
+          {isOwner && <TabsTrigger value="profit">Profit</TabsTrigger>}
+          {isOwner && <TabsTrigger value="reorder">Reorder</TabsTrigger>}
+        </TabsList>
 
-      <h2 className="text-lg font-semibold mb-4">Category Breakdown</h2>
-      <div className="grid gap-4 md:grid-cols-2">
-        {categoryStats.map(c => (
-          <Card key={c.id} className="p-4">
-            <div className="flex justify-between items-center">
-              <div>
-                <h3 className="font-semibold">{c.name}</h3>
-                <p className="text-sm text-muted-foreground hindi">{c.name_hindi}</p>
+        <TabsContent value="overview" className="mt-6">
+          <ReportsOverview
+            isOwner={isOwner}
+            stats={stats}
+            onOpenGraphs={() => setActiveTab('graphs')}
+            onOpenCategories={() => setActiveTab('categories')}
+            onOpenDeadStock={() => setActiveTab('dead')}
+            cards={
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <StatsCard title="Total SKUs" value={stats.totalItems} icon={Package} />
+                <StatsCard title="Low Stock" value={stats.lowStock} icon={AlertTriangle} variant={stats.lowStock > 0 ? 'destructive' : 'default'} />
+                <StatsCard title="Total Value" value={`₹${stats.totalValue.toLocaleString('en-IN')}`} icon={TrendingUp} />
+                <StatsCard title="Total Metres" value={`${stats.totalMetres}m`} icon={Ruler} />
               </div>
-              <div className="text-right">
-                <p className="font-bold">{c.count} items</p>
-                <p className="text-sm text-muted-foreground">₹{c.value.toLocaleString('en-IN')}</p>
-              </div>
-            </div>
-          </Card>
-        ))}
-      </div>
+            }
+          />
+        </TabsContent>
+
+        <TabsContent value="graphs" className="mt-6">
+          <div className="space-y-2">
+            <p className="text-sm text-muted-foreground">Graphs are best for trend checking; use Dead Stock for action items.</p>
+            {activeTab === 'graphs' && <ReportCharts />}
+          </div>
+        </TabsContent>
+
+        <TabsContent value="categories" className="mt-6">
+          <ReportsCategories categories={categories} skus={skus} />
+        </TabsContent>
+
+        {isOwner && (
+          <TabsContent value="dead" className="mt-6">
+            {activeTab === 'dead' && <DeadStockPanel />}
+          </TabsContent>
+        )}
+
+        {isOwner && (
+          <TabsContent value="profit" className="mt-6">
+            {activeTab === 'profit' && <ProfitPerSkuPanel />}
+          </TabsContent>
+        )}
+
+        {isOwner && (
+          <TabsContent value="reorder" className="mt-6">
+            {activeTab === 'reorder' && <PurchaseRecommendationsPanel />}
+          </TabsContent>
+        )}
+      </Tabs>
     </AppLayout>
   );
 }

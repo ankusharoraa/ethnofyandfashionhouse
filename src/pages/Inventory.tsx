@@ -1,23 +1,17 @@
-import { useState, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Plus } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { AnimatePresence } from 'framer-motion';
+import { Search } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { SKUCard } from '@/components/inventory/SKUCard';
-import { SKUForm } from '@/components/inventory/SKUForm';
 import { BarcodeGenerator } from '@/components/inventory/BarcodeGenerator';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useSKUs } from '@/hooks/useSKUs';
 import { useAuth } from '@/hooks/useAuth';
-import { usePermissions } from '@/hooks/usePermissions';
 
 export default function Inventory() {
   const { isOwner } = useAuth();
-  const { hasPermission } = usePermissions();
-  const { skus, categories, subcategories, createSKU, updateSKU, deleteSKU, fetchSKUs } = useSKUs();
-  const [showForm, setShowForm] = useState(false);
-  const [editingSKU, setEditingSKU] = useState<any>(null);
+  const { skus, categories, fetchSKUs } = useSKUs();
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
 
@@ -48,14 +42,14 @@ export default function Inventory() {
                 skus={skus} 
                 onComplete={fetchSKUs}
               />
-              <Button onClick={() => setShowForm(true)}>
-                <Plus className="w-4 h-4 mr-2" />
-                Add Product
-              </Button>
             </>
           )}
         </div>
       </div>
+
+      <p className="text-sm text-muted-foreground mb-6">
+        To add or edit products, go to Purchases.
+      </p>
 
       {/* Show message if no products */}
       {skus.length === 0 && (
@@ -112,34 +106,12 @@ export default function Inventory() {
               <SKUCard 
                 key={sku.id} 
                 sku={sku} 
-                onEdit={isOwner ? setEditingSKU : undefined} 
-                onDelete={isOwner ? (s) => deleteSKU(s.id) : undefined} 
+                showActions={false}
               />
             ))}
           </AnimatePresence>
         </div>
       )}
-
-      {/* SKU Form Dialog */}
-      <SKUForm
-        open={showForm || !!editingSKU}
-        onClose={() => {
-          setShowForm(false);
-          setEditingSKU(null);
-        }}
-        onSubmit={async (data) => {
-          if (editingSKU) {
-            await updateSKU(editingSKU.id, data);
-          } else {
-            await createSKU(data);
-          }
-          setShowForm(false);
-          setEditingSKU(null);
-        }}
-        sku={editingSKU}
-        categories={categories}
-        subcategories={subcategories}
-      />
     </AppLayout>
   );
 }

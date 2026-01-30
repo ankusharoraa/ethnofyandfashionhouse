@@ -2,22 +2,20 @@ import { useState } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { BarcodeScanner } from '@/components/scanner/BarcodeScanner';
 import { SKUCard } from '@/components/inventory/SKUCard';
-import { SKUForm } from '@/components/inventory/SKUForm';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { QrCode, Plus, Package } from 'lucide-react';
+import { QrCode, Package, ArrowRight } from 'lucide-react';
 import { useSKUs, SKU } from '@/hooks/useSKUs';
-import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
+import { useNavigate } from 'react-router-dom';
 
 export default function Scan() {
-  const { isOwner } = useAuth();
-  const { findByBarcode, createSKU, categories, subcategories } = useSKUs();
+  const { findByBarcode } = useSKUs();
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [scanning, setScanning] = useState(false);
   const [foundSKU, setFoundSKU] = useState<SKU | null>(null);
   const [scannedCode, setScannedCode] = useState('');
-  const [showAddForm, setShowAddForm] = useState(false);
 
   const handleScan = async (code: string) => {
     setScanning(false);
@@ -45,17 +43,18 @@ export default function Scan() {
 
       {foundSKU && <SKUCard sku={foundSKU} showActions={false} />}
       
-      {scannedCode && !foundSKU && isOwner && (
+      {scannedCode && !foundSKU && (
         <Card className="p-6 text-center">
           <Package className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
           <p className="mb-4">Barcode: <strong>{scannedCode}</strong></p>
-          <Button onClick={() => setShowAddForm(true)}><Plus className="w-4 h-4 mr-2" />Create New SKU</Button>
+          <Button onClick={() => navigate(`/purchase-billing-revamped?barcode=${encodeURIComponent(scannedCode)}`)}>
+            Create in Purchases
+            <ArrowRight className="w-4 h-4 ml-2" />
+          </Button>
         </Card>
       )}
 
       {scanning && <BarcodeScanner onScan={handleScan} onClose={() => setScanning(false)} />}
-      
-      <SKUForm open={showAddForm} onClose={() => setShowAddForm(false)} onSubmit={createSKU} categories={categories} subcategories={subcategories} scannedBarcode={scannedCode} />
     </AppLayout>
   );
 }

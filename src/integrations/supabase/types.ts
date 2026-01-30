@@ -44,6 +44,47 @@ export type Database = {
         }
         Relationships: []
       }
+      customer_advance_refunds: {
+        Row: {
+          amount: number
+          created_at: string
+          created_by: string | null
+          customer_id: string
+          id: string
+          notes: string | null
+          refund_date: string
+          refund_method: Database["public"]["Enums"]["payment_method"]
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          created_by?: string | null
+          customer_id: string
+          id?: string
+          notes?: string | null
+          refund_date?: string
+          refund_method: Database["public"]["Enums"]["payment_method"]
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          created_by?: string | null
+          customer_id?: string
+          id?: string
+          notes?: string | null
+          refund_date?: string
+          refund_method?: Database["public"]["Enums"]["payment_method"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_advance_refunds_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       customer_ledger: {
         Row: {
           created_at: string
@@ -208,6 +249,39 @@ export type Database = {
         }
         Relationships: []
       }
+      dead_stock_actions: {
+        Row: {
+          created_at: string
+          discount_percent: number | null
+          id: string
+          marked_clearance: boolean
+          note: string | null
+          sku_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          discount_percent?: number | null
+          id?: string
+          marked_clearance?: boolean
+          note?: string | null
+          sku_id: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          discount_percent?: number | null
+          id?: string
+          marked_clearance?: boolean
+          note?: string | null
+          sku_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       inventory_logs: {
         Row: {
           change_type: string
@@ -257,12 +331,13 @@ export type Database = {
       }
       invoice_items: {
         Row: {
-          calculated_discount: number | null
+          calculated_discount: number
           cgst_amount: number
+          cost_price: number | null
           created_at: string
-          discount_amount_per_unit: number | null
-          discount_percent: number | null
-          discount_total_amount: number | null
+          discount_amount_per_unit: number
+          discount_percent: number
+          discount_total_amount: number
           discount_type: string | null
           gst_rate: number
           hsn_code: string | null
@@ -275,6 +350,7 @@ export type Database = {
           price_type: Database["public"]["Enums"]["price_type"]
           quantity: number | null
           rate: number | null
+          sell_price: number | null
           sgst_amount: number
           sku_code: string
           sku_id: string
@@ -283,12 +359,13 @@ export type Database = {
           unit_price: number
         }
         Insert: {
-          calculated_discount?: number | null
+          calculated_discount?: number
           cgst_amount?: number
+          cost_price?: number | null
           created_at?: string
-          discount_amount_per_unit?: number | null
-          discount_percent?: number | null
-          discount_total_amount?: number | null
+          discount_amount_per_unit?: number
+          discount_percent?: number
+          discount_total_amount?: number
           discount_type?: string | null
           gst_rate?: number
           hsn_code?: string | null
@@ -301,6 +378,7 @@ export type Database = {
           price_type: Database["public"]["Enums"]["price_type"]
           quantity?: number | null
           rate?: number | null
+          sell_price?: number | null
           sgst_amount?: number
           sku_code: string
           sku_id: string
@@ -309,12 +387,13 @@ export type Database = {
           unit_price: number
         }
         Update: {
-          calculated_discount?: number | null
+          calculated_discount?: number
           cgst_amount?: number
+          cost_price?: number | null
           created_at?: string
-          discount_amount_per_unit?: number | null
-          discount_percent?: number | null
-          discount_total_amount?: number | null
+          discount_amount_per_unit?: number
+          discount_percent?: number
+          discount_total_amount?: number
           discount_type?: string | null
           gst_rate?: number
           hsn_code?: string | null
@@ -327,6 +406,7 @@ export type Database = {
           price_type?: Database["public"]["Enums"]["price_type"]
           quantity?: number | null
           rate?: number | null
+          sell_price?: number | null
           sgst_amount?: number
           sku_code?: string
           sku_id?: string
@@ -375,7 +455,7 @@ export type Database = {
           pending_amount: number
           place_of_supply_state: string | null
           returned_amount: number
-          round_off_amount: number | null
+          round_off_amount: number
           sgst_amount: number
           status: Database["public"]["Enums"]["invoice_status"]
           subtotal: number
@@ -411,7 +491,7 @@ export type Database = {
           pending_amount?: number
           place_of_supply_state?: string | null
           returned_amount?: number
-          round_off_amount?: number | null
+          round_off_amount?: number
           sgst_amount?: number
           status?: Database["public"]["Enums"]["invoice_status"]
           subtotal?: number
@@ -447,7 +527,7 @@ export type Database = {
           pending_amount?: number
           place_of_supply_state?: string | null
           returned_amount?: number
-          round_off_amount?: number | null
+          round_off_amount?: number
           sgst_amount?: number
           status?: Database["public"]["Enums"]["invoice_status"]
           subtotal?: number
@@ -490,7 +570,6 @@ export type Database = {
           full_name: string | null
           id: string
           phone: string | null
-          role: Database["public"]["Enums"]["user_role"]
           updated_at: string
           user_id: string
         }
@@ -499,7 +578,6 @@ export type Database = {
           full_name?: string | null
           id?: string
           phone?: string | null
-          role?: Database["public"]["Enums"]["user_role"]
           updated_at?: string
           user_id: string
         }
@@ -508,9 +586,32 @@ export type Database = {
           full_name?: string | null
           id?: string
           phone?: string | null
-          role?: Database["public"]["Enums"]["user_role"]
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      profit_settings: {
+        Row: {
+          id: string
+          min_margin_pct: number
+          min_profit_per_unit: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          id?: string
+          min_margin_pct?: number
+          min_profit_per_unit?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          id?: string
+          min_margin_pct?: number
+          min_profit_per_unit?: number
+          updated_at?: string
+          updated_by?: string | null
         }
         Relationships: []
       }
@@ -568,76 +669,169 @@ export type Database = {
         }
         Relationships: []
       }
+      sku_profit_overrides: {
+        Row: {
+          cost_override: number | null
+          created_at: string
+          id: string
+          min_margin_pct_override: number | null
+          min_profit_per_unit_override: number | null
+          note: string | null
+          sku_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          cost_override?: number | null
+          created_at?: string
+          id?: string
+          min_margin_pct_override?: number | null
+          min_profit_per_unit_override?: number | null
+          note?: string | null
+          sku_id: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          cost_override?: number | null
+          created_at?: string
+          id?: string
+          min_margin_pct_override?: number | null
+          min_profit_per_unit_override?: number | null
+          note?: string | null
+          sku_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
+      sku_reorder_overrides: {
+        Row: {
+          created_at: string
+          id: string
+          note: string | null
+          override_recommended_qty: number | null
+          override_status: string | null
+          sku_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          note?: string | null
+          override_recommended_qty?: number | null
+          override_status?: string | null
+          sku_id: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          note?: string | null
+          override_recommended_qty?: number | null
+          override_status?: string | null
+          sku_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       skus: {
         Row: {
           barcode: string | null
+          base_name: string | null
           category_id: string | null
+          color: string | null
           created_at: string
           created_by: string | null
+          deleted_at: string | null
+          deleted_by: string | null
           description: string | null
           fixed_price: number | null
           gst_rate: number
           hsn_code: string | null
           id: string
           image_url: string | null
-          length_metres: number | null
-          low_stock_threshold: number | null
+          is_deleted: boolean
+          length_metres: number
+          low_stock_threshold: number
           name: string
           name_hindi: string | null
+          parent_sku_id: string | null
           price_type: Database["public"]["Enums"]["price_type"]
-          quantity: number | null
+          purchase_fixed_price: number | null
+          purchase_rate: number | null
+          quantity: number
           rate: number | null
           sku_code: string
           subcategory_id: string | null
-          sync_status: Database["public"]["Enums"]["sync_status"] | null
+          sync_status: Database["public"]["Enums"]["sync_status"]
           updated_at: string
           updated_by: string | null
         }
         Insert: {
           barcode?: string | null
+          base_name?: string | null
           category_id?: string | null
+          color?: string | null
           created_at?: string
           created_by?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
           description?: string | null
           fixed_price?: number | null
           gst_rate?: number
           hsn_code?: string | null
           id?: string
           image_url?: string | null
-          length_metres?: number | null
-          low_stock_threshold?: number | null
+          is_deleted?: boolean
+          length_metres?: number
+          low_stock_threshold?: number
           name: string
           name_hindi?: string | null
+          parent_sku_id?: string | null
           price_type?: Database["public"]["Enums"]["price_type"]
-          quantity?: number | null
+          purchase_fixed_price?: number | null
+          purchase_rate?: number | null
+          quantity?: number
           rate?: number | null
           sku_code: string
           subcategory_id?: string | null
-          sync_status?: Database["public"]["Enums"]["sync_status"] | null
+          sync_status?: Database["public"]["Enums"]["sync_status"]
           updated_at?: string
           updated_by?: string | null
         }
         Update: {
           barcode?: string | null
+          base_name?: string | null
           category_id?: string | null
+          color?: string | null
           created_at?: string
           created_by?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
           description?: string | null
           fixed_price?: number | null
           gst_rate?: number
           hsn_code?: string | null
           id?: string
           image_url?: string | null
-          length_metres?: number | null
-          low_stock_threshold?: number | null
+          is_deleted?: boolean
+          length_metres?: number
+          low_stock_threshold?: number
           name?: string
           name_hindi?: string | null
+          parent_sku_id?: string | null
           price_type?: Database["public"]["Enums"]["price_type"]
-          quantity?: number | null
+          purchase_fixed_price?: number | null
+          purchase_rate?: number | null
+          quantity?: number
           rate?: number | null
           sku_code?: string
           subcategory_id?: string | null
-          sync_status?: Database["public"]["Enums"]["sync_status"] | null
+          sync_status?: Database["public"]["Enums"]["sync_status"]
           updated_at?: string
           updated_by?: string | null
         }
@@ -647,6 +841,13 @@ export type Database = {
             columns: ["category_id"]
             isOneToOne: false
             referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "skus_parent_sku_id_fkey"
+            columns: ["parent_sku_id"]
+            isOneToOne: false
+            referencedRelation: "skus"
             referencedColumns: ["id"]
           },
           {
@@ -713,6 +914,53 @@ export type Database = {
             columns: ["category_id"]
             isOneToOne: false
             referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      supplier_ledger: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          credit_amount: number
+          debit_amount: number
+          entry_type: Database["public"]["Enums"]["supplier_ledger_entry_type"]
+          id: string
+          reference_id: string | null
+          reference_label: string | null
+          running_balance: number
+          supplier_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          credit_amount?: number
+          debit_amount?: number
+          entry_type: Database["public"]["Enums"]["supplier_ledger_entry_type"]
+          id?: string
+          reference_id?: string | null
+          reference_label?: string | null
+          running_balance?: number
+          supplier_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          credit_amount?: number
+          debit_amount?: number
+          entry_type?: Database["public"]["Enums"]["supplier_ledger_entry_type"]
+          id?: string
+          reference_id?: string | null
+          reference_label?: string | null
+          running_balance?: number
+          supplier_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "supplier_ledger_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
             referencedColumns: ["id"]
           },
         ]
@@ -853,29 +1101,33 @@ export type Database = {
         }
         Returns: string
       }
+      append_supplier_ledger: {
+        Args: {
+          p_created_at?: string
+          p_credit: number
+          p_debit: number
+          p_entry_type: Database["public"]["Enums"]["supplier_ledger_entry_type"]
+          p_reference_id: string
+          p_reference_label: string
+          p_supplier_id: string
+        }
+        Returns: string
+      }
       assert_customer_active: {
         Args: { p_customer_id: string }
         Returns: undefined
       }
       cancel_invoice: { Args: { p_invoice_id: string }; Returns: Json }
       cancel_purchase_invoice: { Args: { p_invoice_id: string }; Returns: Json }
-      complete_invoice:
-        | {
-            Args: {
-              p_invoice_id: string
-              p_payment_method?: Database["public"]["Enums"]["payment_method"]
-            }
-            Returns: Json
-          }
-        | {
-            Args: {
-              p_amount_paid?: number
-              p_customer_id?: string
-              p_invoice_id: string
-              p_payment_method?: Database["public"]["Enums"]["payment_method"]
-            }
-            Returns: Json
-          }
+      complete_invoice: {
+        Args: {
+          p_amount_paid?: number
+          p_customer_id?: string
+          p_invoice_id: string
+          p_payment_method?: Database["public"]["Enums"]["payment_method"]
+        }
+        Returns: Json
+      }
       complete_purchase_invoice: {
         Args: {
           p_amount_paid?: number
@@ -884,11 +1136,36 @@ export type Database = {
         }
         Returns: Json
       }
+      dead_stock_analysis: {
+        Args: {
+          p_as_of?: string
+          p_fast_days?: number
+          p_never_sold_dead_days?: number
+          p_slow_days?: number
+        }
+        Returns: {
+          avg_unit_cost: number
+          blocked_value: number
+          discount_percent: number
+          last_sold_at: string
+          marked_clearance: boolean
+          movement_bucket: string
+          note: string
+          on_hand_units: number
+          price_type: Database["public"]["Enums"]["price_type"]
+          sku_code: string
+          sku_created_at: string
+          sku_id: string
+          sku_name: string
+        }[]
+      }
       ensure_user_bootstrap: {
         Args: { p_full_name?: string; p_user_id: string }
         Returns: Json
       }
       generate_invoice_number: { Args: never; Returns: string }
+      generate_unique_barcode: { Args: { p_prefix?: string }; Returns: string }
+      generate_unique_sku_code: { Args: { p_prefix?: string }; Returns: string }
       get_customer_running_balance: {
         Args: { p_customer_id: string }
         Returns: number
@@ -910,6 +1187,10 @@ export type Database = {
           sku_name: string
           unit_price: number
         }[]
+      }
+      get_supplier_running_balance: {
+        Args: { p_supplier_id: string }
+        Returns: number
       }
       has_permission: {
         Args: {
@@ -935,6 +1216,67 @@ export type Database = {
         }
         Returns: Json
       }
+      profit_per_sku_report: {
+        Args: {
+          p_cost_basis?: string
+          p_from: string
+          p_revenue_mode?: string
+          p_to: string
+        }
+        Returns: {
+          avg_discount_percent: number
+          cost_source: string
+          flag_low_margin: boolean
+          flag_low_margin_high_volume: boolean
+          flag_negligible_profit: boolean
+          last_purchase_at: string
+          last_purchase_unit_cost: number
+          margin_pct: number
+          min_margin_pct_used: number
+          min_profit_per_unit_used: number
+          note: string
+          price_type: Database["public"]["Enums"]["price_type"]
+          profit_per_unit: number
+          profit_total: number
+          revenue: number
+          sku_code: string
+          sku_id: string
+          sku_name: string
+          unit_cost_used: number
+          unit_sell_avg: number
+          units_sold: number
+        }[]
+      }
+      purchase_recommendations_report: {
+        Args: {
+          p_as_of?: string
+          p_horizon_days?: number
+          p_lookback_days?: number
+        }
+        Returns: {
+          avg_daily_3mo: number
+          avg_daily_last_year: number
+          avg_daily_used: number
+          demand_source: string
+          final_reason: string
+          final_recommended_qty: number
+          final_status: string
+          need_horizon: number
+          override_note: string
+          override_recommended_qty: number
+          override_status: string
+          price_type: Database["public"]["Enums"]["price_type"]
+          reason_system: string
+          recommended_system: number
+          sku_code: string
+          sku_id: string
+          sku_name: string
+          status_system: string
+          stock_on_hand: number
+          units_sold_last_year: number
+          units_sold_lookback: number
+        }[]
+      }
       record_customer_payment: {
         Args: {
           p_amount: number
@@ -953,7 +1295,15 @@ export type Database = {
         }
         Returns: Json
       }
-      soft_delete_customer: { Args: { p_customer_id: string }; Returns: Json }
+      refund_customer_advance: {
+        Args: {
+          p_amount: number
+          p_customer_id: string
+          p_notes?: string
+          p_refund_method?: Database["public"]["Enums"]["payment_method"]
+        }
+        Returns: Json
+      }
     }
     Enums: {
       app_role: "owner" | "staff"
@@ -971,8 +1321,8 @@ export type Database = {
         | "view_profit"
         | "manage_employees"
       price_type: "per_metre" | "fixed"
+      supplier_ledger_entry_type: "purchase" | "payment" | "adjustment"
       sync_status: "synced" | "pending" | "offline"
-      user_role: "owner" | "staff"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1116,8 +1466,8 @@ export const Constants = {
         "manage_employees",
       ],
       price_type: ["per_metre", "fixed"],
+      supplier_ledger_entry_type: ["purchase", "payment", "adjustment"],
       sync_status: ["synced", "pending", "offline"],
-      user_role: ["owner", "staff"],
     },
   },
 } as const

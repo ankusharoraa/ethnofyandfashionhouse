@@ -7,7 +7,7 @@ interface Profile {
   user_id: string;
   full_name: string | null;
   phone: string | null;
-  // NOTE: role is authoritative in `user_roles` table; this field is only for UI convenience.
+  // NOTE: roles are authoritative in `user_roles` table; this field is only for UI convenience.
   role?: 'owner' | 'staff';
   created_at: string;
   updated_at: string;
@@ -36,12 +36,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const fetchIsOwner = async (userId: string) => {
     try {
-      // Check if user has owner role via staff_permissions table
-      // (This is a simplified check - actual role verification would be more complex)
       const { data, error } = await supabase
-        .from('profiles')
+        .from('user_roles')
         .select('role')
         .eq('user_id', userId)
+        .eq('role', 'owner')
         .maybeSingle();
 
       if (error) {
@@ -49,7 +48,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return false;
       }
 
-      return data?.role === 'owner';
+      return !!data;
     } catch (error) {
       console.error('Error in fetchIsOwner:', error);
       return false;
@@ -57,31 +56,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const ensureBootstrap = async (authUser: User) => {
-    // Create profile if missing + assign first-ever user as owner (server-side)
     try {
       const fullName =
         (authUser.user_metadata as { full_name?: string } | undefined)?.full_name ??
         authUser.email ??
         null;
 
-      // Check if profile exists, if not create it
-      const { data: existingProfile } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('user_id', authUser.id)
-        .maybeSingle();
+      // Server-side bootstrap: ensures profile exists + assigns first-ever user as owner.
+      const { error } = await supabase.rpc('ensure_user_bootstrap', {
+        p_user_id: authUser.id,
+        p_full_name: fullName,
+      });
 
-      if (!existingProfile) {
-        const { error } = await supabase
-          .from('profiles')
-          .insert({
-            user_id: authUser.id,
-            full_name: fullName,
-          });
-
-        if (error) {
-          console.error('Error creating profile:', error);
-        }
+      if (error) {
+        console.error('Error in ensure_user_bootstrap:', error);
       }
     } catch (error) {
       console.error('Error in ensureBootstrap:', error);

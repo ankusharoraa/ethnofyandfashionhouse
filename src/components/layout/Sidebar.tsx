@@ -7,7 +7,6 @@ import {
   Barcode,
   BarChart3,
   Settings,
-  FolderOpen,
   LogOut,
   User,
   TrendingUp,
@@ -17,6 +16,7 @@ import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,18 +26,55 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
-const navItems = [
+const primaryItems = [
   { icon: Home, label: 'Dashboard', href: '/dashboard' },
   { icon: Package, label: 'Inventory', href: '/inventory' },
-  { icon: Barcode, label: 'Barcode Printing', href: '/barcode-printing' },
   { icon: TrendingUp, label: 'Sales', href: '/sales' },
   { icon: TrendingDown, label: 'Purchases', href: '/purchases' },
+  { icon: BarChart3, label: 'Reports', href: '/reports' },
+];
+
+const peopleItems = [
   { icon: User, label: 'Customers', href: '/customers' },
   { icon: User, label: 'Suppliers', href: '/suppliers' },
+];
+
+const toolsItems = [
+  { icon: Barcode, label: 'Barcode Printing', href: '/barcode-printing' },
   { icon: QrCode, label: 'Scan', href: '/scan' },
-  { icon: BarChart3, label: 'Reports', href: '/reports' },
   { icon: Settings, label: 'Settings', href: '/settings' },
 ];
+
+function NavSectionLabel({ children }: { children: string }) {
+  return <div className="px-3 pt-3 pb-2 text-[11px] font-medium text-muted-foreground uppercase tracking-wide">{children}</div>;
+}
+
+function NavItem(props: { href: string; label: string; icon: any; isActive: boolean }) {
+  const { href, label, icon: Icon, isActive } = props;
+  return (
+    <Link
+      to={href}
+      className={cn(
+        'relative flex items-center gap-3 px-3 py-2 rounded-xl transition-all',
+        isActive
+          ? 'bg-primary text-primary-foreground shadow-soft'
+          : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+      )}
+    >
+      {isActive && (
+        <motion.div
+          layoutId="activeSidebar"
+          className="absolute inset-0 bg-primary rounded-xl"
+          initial={false}
+          transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+          style={{ zIndex: -1 }}
+        />
+      )}
+      <Icon className="w-5 h-5" />
+      <span className="font-medium">{label}</span>
+    </Link>
+  );
+}
 
 export function Sidebar() {
   const location = useLocation();
@@ -65,36 +102,47 @@ export function Sidebar() {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-        {navItems.map((item) => {
-          const isActive = location.pathname === item.href ||
-            (item.href !== '/dashboard' && location.pathname.startsWith(item.href));
+      <nav className="flex-1 p-4 overflow-y-auto">
+        <NavSectionLabel>Main</NavSectionLabel>
+        <div className="space-y-1">
+          {primaryItems.map((item) => {
+            const isActive =
+              location.pathname === item.href ||
+              (item.href !== '/dashboard' && location.pathname.startsWith(item.href));
+            return <NavItem key={item.href} {...item} isActive={isActive} />;
+          })}
+        </div>
 
-          return (
-            <Link
-              key={item.href}
-              to={item.href}
-              className={cn(
-                'relative flex items-center gap-3 px-4 py-3 rounded-xl transition-all',
-                isActive
-                  ? 'bg-primary text-primary-foreground shadow-soft'
-                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-              )}
-            >
-              {isActive && (
-                <motion.div
-                  layoutId="activeSidebar"
-                  className="absolute inset-0 bg-primary rounded-xl"
-                  initial={false}
-                  transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-                  style={{ zIndex: -1 }}
-                />
-              )}
-              <item.icon className="w-5 h-5" />
-              <span className="font-medium">{item.label}</span>
-            </Link>
-          );
-        })}
+        <NavSectionLabel>People</NavSectionLabel>
+        <div className="space-y-1">
+          {peopleItems.map((item) => {
+            const isActive =
+              location.pathname === item.href ||
+              (item.href !== '/dashboard' && location.pathname.startsWith(item.href));
+            return <NavItem key={item.href} {...item} isActive={isActive} />;
+          })}
+        </div>
+
+        <Collapsible
+          defaultOpen={toolsItems.some((i) => location.pathname === i.href || location.pathname.startsWith(i.href))}
+        >
+          <div className="flex items-center justify-between px-3 pt-3 pb-2">
+            <div className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Tools</div>
+            <CollapsibleTrigger asChild>
+              <Button variant="ghost" size="sm" className="h-7 px-2 text-xs">
+                Toggle
+              </Button>
+            </CollapsibleTrigger>
+          </div>
+          <CollapsibleContent>
+            <div className="space-y-1">
+              {toolsItems.map((item) => {
+                const isActive = location.pathname === item.href || location.pathname.startsWith(item.href);
+                return <NavItem key={item.href} {...item} isActive={isActive} />;
+              })}
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
       </nav>
 
       {/* User Profile */}

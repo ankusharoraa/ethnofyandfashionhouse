@@ -1,11 +1,11 @@
- import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
  import { Input } from '@/components/ui/input';
  import { Label } from '@/components/ui/label';
  import { Button } from '@/components/ui/button';
  import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
  import { Checkbox } from '@/components/ui/checkbox';
   import { Barcode, Plus, X, Search } from 'lucide-react';
-import { forwardRef, useImperativeHandle, useMemo, useRef } from 'react';
+import { forwardRef, useImperativeHandle, useRef, useState } from 'react';
  import type { PurchaseItemDraft, DiscountType } from '@/types/purchase';
  import { SKUSearchDialog } from '@/components/billing/SKUSearchDialog';
  import { useSKUs } from '@/hooks/useSKUs';
@@ -15,6 +15,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { ShortcutHint } from '@/components/ui/shortcut-hint';
+import { SKUForm } from '@/components/inventory/SKUForm';
  
  interface PurchaseEntryFormProps {
    draft: PurchaseItemDraft | null;
@@ -23,6 +24,7 @@ import { ShortcutHint } from '@/components/ui/shortcut-hint';
    marginWholesale: number;
     skuSearchOpen: boolean;
     setSkuSearchOpen: (open: boolean) => void;
+   initialBarcode?: string;
    onDraftChange: (field: string, value: any) => void;
    onAddToTable: () => void;
    onClear: () => void;
@@ -42,12 +44,15 @@ export type PurchaseEntryFormHandle = {
      onClear,
      skuSearchOpen,
      setSkuSearchOpen,
+    initialBarcode,
    },
    ref,
  ) {
-  const { skus, fetchSKUs, categories, subcategories } = useSKUs();
+  const { skus, fetchSKUs, categories, subcategories, updateSKU } = useSKUs();
   const { toast } = useToast();
   const { user } = useAuth();
+
+  const [openingStockOpen, setOpeningStockOpen] = useState(false);
 
    const searchInputRef = useRef<HTMLInputElement | null>(null);
    const qtyInputRef = useRef<HTMLInputElement | null>(null);
@@ -113,8 +118,9 @@ export type PurchaseEntryFormHandle = {
            purchase_rate: (draft as any).purchase_rate ?? null,
           fixed_price: draft.price_type === 'fixed' ? (draft.fixed_price || null) : null,
           rate: draft.price_type === 'per_metre' ? (draft.rate || null) : null,
-          quantity: draft.price_type === 'fixed' ? 0 : null,
-          length_metres: draft.price_type === 'per_metre' ? 0 : null,
+           // Stock starts at 0; never insert NULL because DB columns are NOT NULL
+           quantity: 0,
+           length_metres: 0,
           low_stock_threshold: draft.low_stock_threshold || 5,
           created_by: user?.id,
           updated_by: user?.id,
@@ -149,6 +155,82 @@ export type PurchaseEntryFormHandle = {
     }
   };
 
+  const handleCreateSKUWithOpening = async (data: Partial<SKU>): Promise<SKU | null> => {
+    try {
+      const timestamp = Date.now().toString(36).toUpperCase();
+      const random = Math.random().toString(36).substring(2, 6).toUpperCase();
+      const sku_code = data.sku_code || `SKU-${timestamp}${random}`;
+
+      const openingQty = data.price_type === 'per_metre'
+        ? Number(data.length_metres ?? 0)
+        : Number(data.quantity ?? 0);
+
+      const insertPayload: any = {
+        sku_code,
+        name: data.name!,
+        barcode: data.barcode || null,
+        category_id: data.category_id || null,
+        subcategory_id: data.subcategory_id || null,
+        description: data.description || null,
+        hsn_code: (data as any).hsn_code ?? null,
+        gst_rate: (data as any).gst_rate ?? 0,
+        price_type: data.price_type || 'fixed',
+        purchase_fixed_price: (data as any).purchase_fixed_price ?? null,
+        purchase_rate: (data as any).purchase_rate ?? null,
+        fixed_price: data.price_type === 'fixed' ? (data.fixed_price || null) : null,
+        rate: data.price_type === 'per_metre' ? (data.rate || null) : null,
+        quantity: data.price_type === 'fixed' ? Math.max(0, Math.floor(Number(data.quantity ?? 0))) : 0,
+        length_metres: data.price_type === 'per_metre' ? Math.max(0, Number(data.length_metres ?? 0)) : 0,
+        low_stock_threshold: data.low_stock_threshold || 5,
+        created_by: user?.id,
+        updated_by: user?.id,
+      };
+
+      const { data: created, error } = await supabase
+        .from('skus')
+        .insert(insertPayload)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Audit opening stock (no invoice)
+      if (openingQty > 0) {
+        await supabase.from('inventory_logs').insert({
+          sku_id: created.id,
+          previous_quantity: 0,
+          new_quantity: insertPayload.quantity,
+          previous_length: 0,
+          new_length: insertPayload.length_metres,
+          change_type: 'opening_stock',
+          notes: 'Opening stock set without supplier invoice',
+          changed_by: user?.id,
+        });
+      }
+
+      toast({
+        title: 'Product Created',
+        description: openingQty > 0 ? 'Product created with opening stock' : 'Product created',
+      });
+
+      await fetchSKUs();
+      return created as SKU;
+    } catch (error: any) {
+      console.error('Error creating SKU with opening stock:', error);
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to create product',
+        variant: 'destructive',
+      });
+      return null;
+    }
+  };
+
+  const handleEditSku = async (id: string, updates: Partial<SKU>) => {
+    // keep as thin wrapper so edit is Purchases-only
+    return updateSKU(id, updates);
+  };
+
    return (
      <>
        <Card>
@@ -180,6 +262,15 @@ export type PurchaseEntryFormHandle = {
                 </Button>
               </ShortcutHint>
             </div>
+
+            <Button
+              variant="outline"
+              className="w-full justify-start gap-2"
+              onClick={() => setOpeningStockOpen(true)}
+            >
+              <Plus className="w-4 h-4" />
+              Create Product + Opening Stock
+            </Button>
  
            {draft?.sku && (
              <>
@@ -341,9 +432,28 @@ export type PurchaseEntryFormHandle = {
          }}
          mode="purchase"
           onCreateSku={handleCreateSKU}
+           onEditSku={handleEditSku}
           categories={categories}
           subcategories={subcategories}
+           initialBarcode={initialBarcode}
        />
+
+        <SKUForm
+          open={openingStockOpen}
+          onClose={() => setOpeningStockOpen(false)}
+          onSubmit={async (data) => {
+            const created = await handleCreateSKUWithOpening(data);
+            if (created) {
+              // set current draft to newly created SKU
+              onDraftChange('sku', created);
+            }
+            setOpeningStockOpen(false);
+          }}
+          categories={categories}
+          subcategories={subcategories}
+          scannedBarcode={initialBarcode}
+          allowStockEdit
+        />
      </>
    );
   });

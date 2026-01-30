@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
@@ -6,7 +6,6 @@ import {
   AlertTriangle,
   TrendingUp,
   FolderOpen,
-  Plus,
   QrCode,
   ArrowRight,
   Search,
@@ -14,7 +13,6 @@ import {
 import { AppLayout } from '@/components/layout/AppLayout';
 import { StatsCard } from '@/components/dashboard/StatsCard';
 import { SKUCard } from '@/components/inventory/SKUCard';
-import { SKUForm } from '@/components/inventory/SKUForm';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
@@ -24,9 +22,7 @@ import { useAuth } from '@/hooks/useAuth';
 
 export default function Dashboard() {
   const { profile, isOwner } = useAuth();
-  const { skus, categories, subcategories, isLoading, getLowStockItems, createSKU, updateSKU } = useSKUs();
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [editingSKU, setEditingSKU] = useState<typeof skus[0] | null>(null);
+  const { skus, categories, isLoading, getLowStockItems } = useSKUs();
   const [searchQuery, setSearchQuery] = useState('');
 
   const lowStockItems = useMemo(() => getLowStockItems(), [skus]);
@@ -55,17 +51,6 @@ export default function Dashboard() {
     ).slice(0, 5);
   }, [skus, searchQuery, recentItems]);
 
-  const handleCreateSKU = async (data: Parameters<typeof createSKU>[0]) => {
-    await createSKU(data);
-  };
-
-  const handleUpdateSKU = async (data: Parameters<typeof updateSKU>[1]) => {
-    if (editingSKU) {
-      await updateSKU(editingSKU.id, data);
-      setEditingSKU(null);
-    }
-  };
-
   const greeting = () => {
     const hour = new Date().getHours();
     if (hour < 12) return 'Good Morning';
@@ -93,12 +78,6 @@ export default function Dashboard() {
 
       {/* Quick Actions */}
       <div className="flex flex-wrap gap-3 mb-8">
-        {isOwner && (
-          <Button onClick={() => setShowAddForm(true)} className="gap-2">
-            <Plus className="w-4 h-4" />
-            Add SKU
-          </Button>
-        )}
         <Button variant="outline" asChild className="gap-2">
           <Link to="/scan">
             <QrCode className="w-4 h-4" />
@@ -209,8 +188,7 @@ export default function Dashboard() {
               <SKUCard
                 key={sku.id}
                 sku={sku}
-                onEdit={isOwner ? setEditingSKU : undefined}
-                showActions={isOwner}
+                showActions={false}
               />
             ))}
           </div>
@@ -219,30 +197,16 @@ export default function Dashboard() {
             <Package className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
             <h3 className="font-semibold mb-2">No items found</h3>
             <p className="text-muted-foreground text-sm mb-4">
-              {searchQuery ? 'Try a different search term' : 'Start by adding your first SKU'}
+              {searchQuery ? 'Try a different search term' : 'Create products from Purchases'}
             </p>
-            {isOwner && !searchQuery && (
-              <Button onClick={() => setShowAddForm(true)}>
-                <Plus className="w-4 h-4 mr-2" />
-                Add First SKU
+            {!searchQuery && (
+              <Button asChild>
+                <Link to="/purchase-billing-revamped">Go to Purchases</Link>
               </Button>
             )}
           </Card>
         )}
       </div>
-
-      {/* Add/Edit Form */}
-      <SKUForm
-        open={showAddForm || !!editingSKU}
-        onClose={() => {
-          setShowAddForm(false);
-          setEditingSKU(null);
-        }}
-        onSubmit={editingSKU ? handleUpdateSKU : handleCreateSKU}
-        sku={editingSKU}
-        categories={categories}
-        subcategories={subcategories}
-      />
     </AppLayout>
   );
 }

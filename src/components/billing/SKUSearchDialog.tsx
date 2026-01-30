@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, QrCode, Package, Ruler, Plus } from 'lucide-react';
+import { Search, QrCode, Package, Ruler, Plus, Edit2 } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -23,8 +23,10 @@ interface SKUSearchDialogProps {
   onScanRequest: () => void;
   mode?: 'sale' | 'purchase';
   onCreateSku?: (data: Partial<SKU>) => Promise<SKU | null>;
+  onEditSku?: (id: string, data: Partial<SKU>) => Promise<SKU | null>;
   categories?: Category[];
   subcategories?: Subcategory[];
+  initialBarcode?: string;
 }
 
 export function SKUSearchDialog({
@@ -35,11 +37,14 @@ export function SKUSearchDialog({
   onScanRequest,
   mode = 'sale',
   onCreateSku,
+  onEditSku,
   categories = [],
   subcategories = [],
+  initialBarcode,
 }: SKUSearchDialogProps) {
   const [search, setSearch] = useState('');
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [editingSku, setEditingSku] = useState<SKU | null>(null);
 
   const filtered = useMemo(() => {
     if (!search) return skus.slice(0, 20);
@@ -61,6 +66,7 @@ export function SKUSearchDialog({
   };
 
   const canCreate = mode === 'purchase' && typeof onCreateSku === 'function';
+  const canEdit = mode === 'purchase' && typeof onEditSku === 'function';
 
   const handleCreate = async (data: Partial<SKU>): Promise<SKU | null | void> => {
     if (!canCreate || !onCreateSku) return;
@@ -166,7 +172,10 @@ export function SKUSearchDialog({
 
                           <div className="text-right">
                             <p className="font-semibold text-primary">
-                              ₹{isPerMetre ? sku.rate : sku.fixed_price}
+                              ₹
+                              {mode === 'purchase'
+                                ? (isPerMetre ? (sku as any).purchase_rate : (sku as any).purchase_fixed_price)
+                                : (isPerMetre ? sku.rate : sku.fixed_price)}
                               {isPerMetre && <span className="text-xs">/m</span>}
                             </p>
                             <Badge
@@ -187,9 +196,22 @@ export function SKUSearchDialog({
                           </div>
 
                           {!isDisabled && (
-                            <Button size="icon" variant="ghost" className="shrink-0">
-                              <Plus className="w-4 h-4" />
-                            </Button>
+                            <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                              {canEdit && (
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="shrink-0"
+                                  aria-label="Edit product"
+                                  onClick={() => setEditingSku(sku)}
+                                >
+                                  <Edit2 className="w-4 h-4" />
+                                </Button>
+                              )}
+                              <Button size="icon" variant="ghost" className="shrink-0" aria-label="Select product">
+                                <Plus className="w-4 h-4" />
+                              </Button>
+                            </div>
                           )}
                         </motion.div>
                       );
@@ -211,6 +233,23 @@ export function SKUSearchDialog({
             await handleCreate(data);
             setShowCreateForm(false);
           }}
+          categories={categories}
+          subcategories={subcategories}
+          scannedBarcode={initialBarcode}
+        />
+      )}
+
+      {/* Edit SKU Form */}
+      {canEdit && editingSku && (
+        <SKUForm
+          open={!!editingSku}
+          onClose={() => setEditingSku(null)}
+          onSubmit={async (data) => {
+            if (!onEditSku) return;
+            await onEditSku(editingSku.id, data);
+            setEditingSku(null);
+          }}
+          sku={editingSku}
           categories={categories}
           subcategories={subcategories}
         />

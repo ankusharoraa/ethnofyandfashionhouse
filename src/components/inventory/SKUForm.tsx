@@ -174,8 +174,9 @@ export function SKUForm({
         purchase_fixed_price: data.price_type === 'fixed' ? (data.purchase_fixed_price ?? null) : null,
         rate: data.price_type === 'per_metre' ? data.rate : null,
         fixed_price: data.price_type === 'fixed' ? data.fixed_price : null,
-        quantity: data.price_type === 'fixed' ? data.quantity : null,
-        length_metres: data.price_type === 'per_metre' ? data.length_metres : null,
+        // IMPORTANT: DB columns are NOT NULL; keep unused stock field as 0 (never null)
+        quantity: data.price_type === 'fixed' ? data.quantity : 0,
+        length_metres: data.price_type === 'per_metre' ? data.length_metres : 0,
       });
       onClose();
     } finally {
@@ -274,6 +275,11 @@ export function SKUForm({
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
+                        {categories.length === 0 ? (
+                          <SelectItem value="__none" disabled>
+                            No categories yet
+                          </SelectItem>
+                        ) : null}
                         {categories.map((cat) => (
                           <SelectItem key={cat.id} value={cat.id}>
                             {cat.name}
@@ -303,6 +309,11 @@ export function SKUForm({
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
+                        {categoryId && filteredSubcategories.length === 0 ? (
+                          <SelectItem value="__none" disabled>
+                            No subcategories for this category
+                          </SelectItem>
+                        ) : null}
                         {filteredSubcategories.map((sub) => (
                           <SelectItem key={sub.id} value={sub.id}>
                             {sub.name}
@@ -505,54 +516,56 @@ export function SKUForm({
                     />
 
                     <div className="grid grid-cols-2 gap-4">
-                      {priceType === 'fixed' ? (
-                        <FormField
-                          control={form.control}
-                          name="quantity"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Quantity</FormLabel>
-                              <FormControl>
-                                <Input
-                                  type="number"
-                                  placeholder="0"
-                                  {...field}
-                                  onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
-                                  disabled={sku && !allowStockEdit}
-                                />
-                              </FormControl>
-                              {sku && !allowStockEdit && (
-                                <p className="text-xs text-muted-foreground">Stock managed via Purchases/Sales</p>
-                              )}
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      ) : (
-                        <FormField
-                          control={form.control}
-                          name="length_metres"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Length (metres)</FormLabel>
-                              <FormControl>
-                                <Input
-                                  type="number"
-                                  step="0.1"
-                                  placeholder="0.0"
-                                  {...field}
-                                  onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
-                                  disabled={sku && !allowStockEdit}
-                                />
-                              </FormControl>
-                              {sku && !allowStockEdit && (
-                                <p className="text-xs text-muted-foreground">Stock managed via Purchases/Sales</p>
-                              )}
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      )}
+                      {(sku || allowStockEdit) ? (
+                        priceType === 'fixed' ? (
+                          <FormField
+                            control={form.control}
+                            name="quantity"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Quantity</FormLabel>
+                                <FormControl>
+                                  <Input
+                                    type="number"
+                                    placeholder="0"
+                                    {...field}
+                                    onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
+                                    disabled={sku && !allowStockEdit}
+                                  />
+                                </FormControl>
+                                {sku && !allowStockEdit && (
+                                  <p className="text-xs text-muted-foreground">Stock managed via Purchases/Sales</p>
+                                )}
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        ) : (
+                          <FormField
+                            control={form.control}
+                            name="length_metres"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Length (metres)</FormLabel>
+                                <FormControl>
+                                  <Input
+                                    type="number"
+                                    step="0.1"
+                                    placeholder="0.0"
+                                    {...field}
+                                    onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+                                    disabled={sku && !allowStockEdit}
+                                  />
+                                </FormControl>
+                                {sku && !allowStockEdit && (
+                                  <p className="text-xs text-muted-foreground">Stock managed via Purchases/Sales</p>
+                                )}
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        )
+                      ) : null}
 
                       <FormField
                         control={form.control}
