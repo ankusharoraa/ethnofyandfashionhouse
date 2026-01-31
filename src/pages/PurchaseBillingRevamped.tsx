@@ -2,7 +2,7 @@
  import { AppLayout } from '@/components/layout/AppLayout';
  import { Card } from '@/components/ui/card';
  import { Button } from '@/components/ui/button';
- import { useToast } from '@/hooks/use-toast';
+  import { useToast } from '@/hooks/use-toast';
  import { useSuppliers } from '@/hooks/useSuppliers';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
@@ -15,7 +15,7 @@ import { PurchaseEntryForm, type PurchaseEntryFormHandle } from '@/components/pu
  import { calculateBillTotals, calculateLineDiscount, calculateLineTotal, applyMarginIfEnabled } from '@/lib/purchaseCalculations';
 import { allocateProportionalDiscount, calcInclusiveLine, normalizeState, splitGst, clampGstRate } from '@/lib/gst';
  import { useLocation, useNavigate } from 'react-router-dom';
-import { useShopSettings } from '@/hooks/useShopSettings';
+ import { useShopSettings } from '@/hooks/useShopSettings';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -28,8 +28,8 @@ import {
 } from '@/components/ui/alert-dialog';
  
  export default function PurchaseBillingRevamped() {
-   const { toast } = useToast();
-   const navigate = useNavigate();
+    const { toast } = useToast();
+    const navigate = useNavigate();
     const location = useLocation();
    const { suppliers } = useSuppliers();
   const { user } = useAuth();
@@ -359,6 +359,22 @@ import {
     },
     { taxableSubtotal: 0, taxAmount: 0, cgst: 0, sgst: 0, igst: 0 }
   );
+
+   const handlePrintBarcodesFromPurchase = useCallback(() => {
+     if (tableItems.length === 0) {
+       toast({
+         title: 'No items',
+         description: 'Add products to the purchase before printing barcodes',
+         variant: 'destructive',
+       });
+       return;
+     }
+
+     const skuIds = Array.from(new Set(tableItems.map((i) => i.sku_id)));
+     const params = new URLSearchParams();
+     params.set('skuIds', skuIds.join(','));
+     navigate(`/barcode-printing?${params.toString()}`);
+   }, [navigate, tableItems, toast]);
  
    // Reset form
    const handleReset = useCallback(() => {
@@ -648,9 +664,7 @@ import {
                onPurchaseTypeChange={setPurchaseType}
                onAmountPaidChange={setAmountPaid}
                onBankAccountChange={setBankAccount}
-               onPrintBarcodes={() => {
-                 toast({ title: 'Coming Soon', description: 'Barcode printing will be available soon' });
-               }}
+                onPrintBarcodes={handlePrintBarcodesFromPurchase}
                onPrint={() => {
                  toast({ title: 'Coming Soon', description: 'Print preview will be available soon' });
                }}

@@ -1,8 +1,6 @@
 import { generateBarcodePngDataUrl } from '@/lib/barcode';
-import type { Tables } from '@/integrations/supabase/types';
- import type { BarcodeTemplate, BarcodeCustomization } from '@/pages/BarcodePrinting';
-
-type SKU = Tables<'skus'>;
+import type { BarcodeTemplate, BarcodeCustomization } from '@/pages/BarcodePrinting';
+import type { SKU } from '@/hooks/useSKUs';
 
 interface BarcodeLabelRendererProps {
   sku: SKU;
@@ -42,14 +40,14 @@ const templateConfig = {
      padding: 'p-2',
    },
 };
-
- const heightConfig = {
+ 
+  const heightConfig = {
    compact: { small: 30, medium: 35, large: 40 },
    standard: { small: 40, medium: 50, large: 60 },
    tall: { small: 50, medium: 65, large: 80 },
  };
  
- export function BarcodeLabelRenderer({ sku, template, customization }: BarcodeLabelRendererProps) {
+  export function BarcodeLabelRenderer({ sku, template, customization }: BarcodeLabelRendererProps) {
   const config = templateConfig[template];
    
    const fontSizes = {
@@ -71,45 +69,44 @@ const templateConfig = {
      };
      const sizeKey = baseHeights[template];
      return heightConfig[customization.barcodeHeight][sizeKey];
-   };
-  
-  if (!sku.barcode) {
-    return (
-      <div className={`border rounded flex items-center justify-center ${config.padding} bg-muted/20`}>
-        <p className="text-[8pt] text-muted-foreground text-center">No Barcode</p>
-      </div>
-    );
-  }
+    };
 
-  const barcodeDataUrl = generateBarcodePngDataUrl(sku.barcode, {
-    width: config.width,
-     height: getAdjustedHeight(),
-    displayValue: false,
-  });
+   const hasBarcode = Boolean(sku.barcode);
+   const barcodeDataUrl = hasBarcode
+     ? generateBarcodePngDataUrl(sku.barcode as string, {
+         width: config.width,
+         height: getAdjustedHeight(),
+         displayValue: false,
+       })
+     : null;
 
-  return (
-    <div className={`border rounded flex flex-col items-center justify-center ${config.padding} bg-white`}>
+   return (
+     <div className={`border rounded flex flex-col items-center justify-center ${config.padding} bg-white`}>
        {customization.showProductName && (
          <div className={`font-semibold ${fonts.name} text-center line-clamp-1 w-full`}>
            {sku.name}
          </div>
        )}
-      
+
        {customization.showSKUCode && (
          <div className={`${fonts.code} text-muted-foreground text-center`}>
            {sku.sku_code}
          </div>
        )}
-      
-      <div className="flex-1 flex items-center justify-center w-full my-1">
-        <img src={barcodeDataUrl} alt={sku.barcode} className="max-w-full h-auto" />
-      </div>
-      
+
+       <div className="flex-1 flex items-center justify-center w-full my-1">
+         {hasBarcode && barcodeDataUrl ? (
+           <img src={barcodeDataUrl} alt={sku.barcode as string} className="max-w-full h-auto" />
+         ) : (
+           <p className="text-[8pt] text-muted-foreground text-center">Barcode not set</p>
+         )}
+       </div>
+
        {customization.showMRP && sku.fixed_price && (
          <div className={`${fonts.mrp} font-semibold text-right w-full`}>
-          MRP: ₹{sku.fixed_price}
-        </div>
-      )}
-    </div>
-  );
+           MRP: ₹{sku.fixed_price}
+         </div>
+       )}
+     </div>
+   );
 }

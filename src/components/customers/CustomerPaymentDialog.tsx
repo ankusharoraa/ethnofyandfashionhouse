@@ -63,19 +63,12 @@ export function CustomerPaymentDialog({
       return;
     }
 
-    if (paymentAmount > customer.outstanding_balance) {
-      toast({
-        title: 'Amount Too High',
-        description: 'Payment cannot exceed outstanding balance',
-        variant: 'destructive',
-      });
-      return;
-    }
+    // Allow overpayment: the backend will apply to dues first and convert remainder to advance.
 
     setIsProcessing(true);
 
     try {
-      const { data, error } = await supabase.rpc('record_customer_payment', {
+      const { data, error } = await (supabase as any).rpc('record_customer_payment', {
         p_customer_id: customer.id,
         p_amount: paymentAmount,
         p_payment_method: selectedMethod,
@@ -90,9 +83,16 @@ export function CustomerPaymentDialog({
         throw new Error(result.error || 'Payment failed');
       }
 
+      const meta = data as any;
+      const applied = Number(meta?.applied_to_due ?? Math.min(paymentAmount, customer.outstanding_balance));
+      const toAdvance = Number(meta?.added_to_advance ?? Math.max(0, paymentAmount - customer.outstanding_balance));
+
       toast({
         title: 'Payment Received',
-        description: `₹${paymentAmount.toFixed(2)} payment recorded for ${customer.name}`,
+        description:
+          toAdvance > 0
+            ? `₹${paymentAmount.toFixed(2)} recorded. ₹${applied.toFixed(2)} cleared due, ₹${toAdvance.toFixed(2)} added to advance.`
+            : `₹${paymentAmount.toFixed(2)} payment recorded for ${customer.name}`,
       });
 
       onSuccess();

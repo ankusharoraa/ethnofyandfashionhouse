@@ -39,6 +39,7 @@ type CustomerRow = {
   phone: string | null;
   city: string | null;
   outstanding_balance: number;
+  advance_balance: number;
 };
 
 type PaymentRow = {
@@ -117,7 +118,7 @@ export default function CustomerLedger() {
     try {
       const { data: cust, error: custErr } = await supabase
         .from('customers')
-        .select('id, name, phone, city, outstanding_balance')
+        .select('id, name, phone, city, outstanding_balance, advance_balance')
         .eq('id', customerId)
         .maybeSingle();
 
@@ -275,10 +276,16 @@ export default function CustomerLedger() {
 
   const headerBadges = useMemo(() => {
     if (!customer) return null;
+    const advance = Number((customer as any).advance_balance || 0);
     return (
       <div className="flex flex-wrap gap-2">
         {Number(customer.outstanding_balance || 0) > 0 && (
           <Badge variant="destructive">Due ₹{Number(customer.outstanding_balance || 0).toFixed(0)}</Badge>
+        )}
+        {advance > 0 && (
+          <Badge variant="outline" className="text-xs">
+            Advance ₹{advance.toFixed(0)}
+          </Badge>
         )}
       </div>
     );
@@ -366,8 +373,8 @@ export default function CustomerLedger() {
               <Button
                 variant="outline"
                 onClick={() => setShowAdvanceRefund(true)}
-                disabled
-                title="Feature not yet implemented"
+                disabled={Number((customer as any).advance_balance || 0) <= 0}
+                title={Number((customer as any).advance_balance || 0) > 0 ? 'Refund customer advance' : 'No advance balance to refund'}
               >
                 Refund Advance
               </Button>

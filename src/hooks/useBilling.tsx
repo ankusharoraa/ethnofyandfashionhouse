@@ -80,7 +80,7 @@ export function useBilling() {
   const fetchInvoices = async (type?: InvoiceType) => {
     setIsLoading(true);
     try {
-      let query = supabase
+      let query = (supabase as any)
         .from('invoices')
         .select(`
           *,
@@ -112,7 +112,7 @@ export function useBilling() {
 
   // Generate invoice number
   const generateInvoiceNumber = async (): Promise<string> => {
-    const { data, error } = await supabase.rpc('generate_invoice_number');
+    const { data, error } = await (supabase as any).rpc('generate_invoice_number');
     
     if (error) {
       console.error('Error generating invoice number:', error);
@@ -122,7 +122,7 @@ export function useBilling() {
       return `INV-${dateStr}-${Math.floor(Math.random() * 9999).toString().padStart(4, '0')}`;
     }
     
-    return data;
+    return String(data);
   };
 
   // Add item to cart
@@ -239,7 +239,7 @@ export function useBilling() {
   }, [cartItems]);
 
   const fetchShopState = async (): Promise<string | null> => {
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('shop_settings')
       .select('state')
       .limit(1)
@@ -253,7 +253,7 @@ export function useBilling() {
     supplierId?: string;
   }): Promise<{ placeOfSupplyState: string | null; customerGstin: string | null; supplierGstin: string | null }> => {
     if (opts.customerId) {
-      const { data } = await supabase
+      const { data } = await (supabase as any)
         .from('customers')
         .select('state,gstin')
         .eq('id', opts.customerId)
@@ -266,7 +266,7 @@ export function useBilling() {
     }
 
     if (opts.supplierId) {
-      const { data } = await supabase
+      const { data } = await (supabase as any)
         .from('suppliers')
         .select('state,gstin')
         .eq('id', opts.supplierId)
@@ -335,7 +335,7 @@ export function useBilling() {
 
     const totalAmount = cartItems.reduce((sum, it) => sum + it.line_total, 0);
     
-    const { data: invoice, error: invoiceError } = await supabase
+    const { data: invoice, error: invoiceError } = await (supabase as any)
       .from('invoices')
       .insert({
         invoice_number: invoiceNumber,
@@ -396,14 +396,14 @@ export function useBilling() {
       igst_amount: igst,
     }));
 
-    const { error: itemsError } = await supabase
+    const { error: itemsError } = await (supabase as any)
       .from('invoice_items')
       .insert(itemsToInsert);
 
     if (itemsError) {
       console.error('Error creating invoice items:', itemsError);
       // Rollback: delete the invoice
-      await supabase.from('invoices').delete().eq('id', invoice.id);
+      await (supabase as any).from('invoices').delete().eq('id', invoice.id);
       toast({
         title: 'Error',
         description: 'Failed to create invoice items',
@@ -433,7 +433,7 @@ export function useBilling() {
   ): Promise<{ success: boolean; error?: string; overpay?: number; pending?: number }> => {
     const { customerId, cash, upi, card, advanceUsed, credit, confirmOverpay } = options;
 
-    const { data, error } = await supabase.rpc('complete_invoice_split', {
+    const { data, error } = await (supabase as any).rpc('complete_invoice_split', {
       p_invoice_id: invoiceId,
       p_customer_id: customerId || null,
       p_cash: cash ?? 0,
@@ -486,7 +486,7 @@ export function useBilling() {
     paymentMethod: PaymentMethod = 'cash',
     amountPaid: number = 0
   ): Promise<{ success: boolean; error?: string }> => {
-    const { data, error } = await supabase.rpc('complete_purchase_invoice', {
+    const { data, error } = await (supabase as any).rpc('complete_purchase_invoice', {
       p_invoice_id: invoiceId,
       p_payment_method: paymentMethod,
       p_amount_paid: amountPaid,

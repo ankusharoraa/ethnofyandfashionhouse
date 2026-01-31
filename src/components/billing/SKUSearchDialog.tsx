@@ -14,6 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import type { SKU, Category, Subcategory } from '@/hooks/useSKUs';
 import { SKUForm } from '@/components/inventory/SKUForm';
+import { computeMargin } from '@/lib/pricing';
 
 interface SKUSearchDialogProps {
   open: boolean;
@@ -135,6 +136,14 @@ export function SKUSearchDialog({
                       const isOutOfStock = stock <= 0;
                       const isDisabled = mode === 'sale' && isOutOfStock;
 
+                      const purchaseCost = mode === 'purchase'
+                        ? (isPerMetre ? (sku as any).purchase_rate : (sku as any).purchase_fixed_price)
+                        : null;
+                      const selling = isPerMetre ? sku.rate : sku.fixed_price;
+                      const margin = mode === 'purchase' ? computeMargin(purchaseCost, selling) : null;
+                      const hasMissingPrices =
+                        mode === 'purchase' && (!purchaseCost || purchaseCost <= 0 || !selling || selling <= 0);
+
                       return (
                         <motion.div
                           key={sku.id}
@@ -168,6 +177,26 @@ export function SKUSearchDialog({
                                 </>
                               )}
                             </div>
+
+                            {mode === 'purchase' && (
+                              <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                                <span>Cost: ₹{purchaseCost ? Number(purchaseCost).toFixed(2) : '—'}</span>
+                                <span>•</span>
+                                <span>Selling: ₹{selling ? Number(selling).toFixed(2) : '—'}</span>
+                                <span>•</span>
+                                <span>
+                                  Margin:{' '}
+                                  {hasMissingPrices || !margin || margin.marginPercent === null
+                                    ? '—'
+                                    : `${margin.marginPercent.toFixed(1)}%`}
+                                </span>
+                                {hasMissingPrices && (
+                                  <Badge variant="destructive" className="text-xs">
+                                    Missing prices
+                                  </Badge>
+                                )}
+                              </div>
+                            )}
                           </div>
 
                           <div className="text-right">

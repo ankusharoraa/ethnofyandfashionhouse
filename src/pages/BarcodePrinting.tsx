@@ -1,4 +1,4 @@
- import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,6 +10,7 @@ import { TemplateSelector } from '@/components/barcodes/TemplateSelector';
 import { BarcodePrintPreview } from '@/components/barcodes/BarcodePrintPreview';
  import { Search, Printer, RotateCcw, Filter, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
+import { useLocation } from 'react-router-dom';
  import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
  import { Alert, AlertDescription } from '@/components/ui/alert';
 
@@ -28,8 +29,9 @@ export interface SelectedProduct {
   copies: number;
 }
 
-const BarcodePrinting = () => {
-  const { skus, isLoading } = useSKUs();
+ const BarcodePrinting = () => {
+   const { skus, isLoading, fetchSKUs } = useSKUs();
+   const location = useLocation();
   
   // Selection state: Map<skuId, copyCount>
   const [selectedProducts, setSelectedProducts] = useState<Map<string, number>>(new Map());
@@ -217,6 +219,24 @@ const BarcodePrinting = () => {
    
    const withoutBarcode = selectedSKUsForPreview.filter(sku => !sku.barcode);
 
+   // Pre-select SKUs when coming from Purchase screen
+   useEffect(() => {
+     const searchParams = new URLSearchParams(location.search);
+     const skuIdsParam = searchParams.get('skuIds');
+     if (!skuIdsParam || skus.length === 0) return;
+
+     const ids = skuIdsParam.split(',').filter(Boolean);
+     setSelectedProducts(prev => {
+       const newMap = new Map(prev);
+       ids.forEach(id => {
+         if (skus.some(s => s.id === id) && !newMap.has(id)) {
+           newMap.set(id, 1);
+         }
+       });
+       return newMap;
+     });
+   }, [location.search, skus]);
+
   return (
     <AppLayout>
       <div className="container mx-auto py-6 space-y-6 max-w-7xl">
@@ -228,12 +248,16 @@ const BarcodePrinting = () => {
               Select products and generate barcode labels in bulk
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={reset}>
-              <RotateCcw className="w-4 h-4 mr-2" />
-              Reset
-            </Button>
-            <Button onClick={openPrintPreview} disabled={selectedProducts.size === 0}>
+           <div className="flex items-center gap-2">
+             <Button variant="outline" onClick={reset}>
+               <RotateCcw className="w-4 h-4 mr-2" />
+               Reset
+             </Button>
+             <Button variant="outline" onClick={() => fetchSKUs()} disabled={isLoading}>
+               <RotateCcw className="w-4 h-4 mr-2" />
+               Refresh Products
+             </Button>
+             <Button onClick={openPrintPreview} disabled={selectedProducts.size === 0}>
               <Printer className="w-4 h-4 mr-2" />
               Print Preview ({totalLabels} labels)
             </Button>

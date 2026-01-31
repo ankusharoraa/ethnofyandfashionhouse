@@ -21,7 +21,7 @@ import type { PaymentMethod } from '@/hooks/useBilling';
 interface CustomerAdvanceRefundDialogProps {
   open: boolean;
   onClose: () => void;
-  customer: Pick<Customer, 'id' | 'name'>;
+  customer: Pick<Customer, 'id' | 'name' | 'advance_balance' | 'outstanding_balance'>;
   onSuccess: () => void;
 }
 
@@ -43,6 +43,8 @@ export function CustomerAdvanceRefundDialog({
   const [isProcessing, setIsProcessing] = useState(false);
   const { toast } = useToast();
 
+  const currentAdvance = Math.max(0, (customer as any).advance_balance ?? 0);
+
   useEffect(() => {
     if (open) {
       setAmount('');
@@ -63,13 +65,48 @@ export function CustomerAdvanceRefundDialog({
       return;
     }
 
-    // Feature not yet implemented
-    toast({
-      title: 'Feature Not Available',
-      description: 'Customer advance refunds are not yet implemented',
-      variant: 'destructive',
-    });
-    onClose();
+    if (refundAmount > currentAdvance) {
+      toast({
+        title: 'Invalid Amount',
+        description: 'Refund cannot exceed advance balance',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsProcessing(true);
+    try {
+      const { data, error } = await (supabase as any).rpc('refund_customer_advance', {
+        p_customer_id: customer.id,
+        p_amount: refundAmount,
+        p_payment_method: selectedMethod,
+        p_notes: notes || null,
+      });
+
+      if (error) throw error;
+
+      const result = data as { success: boolean; error?: string };
+      if (!result?.success) {
+        throw new Error(result?.error || 'Refund failed');
+      }
+
+      toast({
+        title: 'Advance Refunded',
+        description: `₹${refundAmount.toFixed(2)} refunded to ${customer.name}`,
+      });
+
+      onSuccess();
+      onClose();
+    } catch (err: any) {
+      console.error('Refund error:', err);
+      toast({
+        title: 'Refund Failed',
+        description: err?.message || 'Could not process refund',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   return (
@@ -86,8 +123,7 @@ export function CustomerAdvanceRefundDialog({
         <div className="space-y-4">
           <div className="text-center py-3 bg-muted/50 rounded-lg">
             <p className="text-xs text-muted-foreground">Advance Balance</p>
-            <p className="text-2xl font-bold">₹0.00</p>
-            <p className="text-xs text-muted-foreground mt-1">(Not yet implemented)</p>
+            <p className="text-2xl font-bold">₹{currentAdvance.toFixed(2)}</p>
           </div>
 
           <div>
@@ -109,8 +145,8 @@ export function CustomerAdvanceRefundDialog({
                 variant="outline"
                 size="sm"
                 className="flex-1 text-xs"
-                onClick={() => setAmount('0')}
-                disabled
+                 onClick={() => setAmount(currentAdvance.toString())}
+                 disabled={currentAdvance <= 0}
               >
                 Full Advance
               </Button>
@@ -119,8 +155,8 @@ export function CustomerAdvanceRefundDialog({
                 variant="outline"
                 size="sm"
                 className="flex-1 text-xs"
-                onClick={() => setAmount('0')}
-                disabled
+                 onClick={() => setAmount((currentAdvance / 2).toFixed(2))}
+                 disabled={currentAdvance <= 0}
               >
                 Half
               </Button>

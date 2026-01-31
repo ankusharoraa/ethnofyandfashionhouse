@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -13,6 +13,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
+import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -31,8 +32,16 @@ import {
 } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { SKU, Category, Subcategory } from '@/hooks/useSKUs';
+import { computeMargin, sellingFromMargin } from '@/lib/pricing';
 
-const skuSchema = z.object({
+const emptyStringToUndefinedNumber = (value: unknown) => {
+  if (value === '' || value === null || value === undefined) return undefined;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : undefined;
+};
+
+const skuSchema = z
+  .object({
   sku_code: z.string().min(1, 'SKU code is required').max(50),
   barcode: z.string().max(100).optional().nullable(),
   name: z.string().min(1, 'Product name is required').max(200),
@@ -47,14 +56,73 @@ const skuSchema = z.object({
     .nullable(),
   gst_rate: z.number().min(0).max(28).default(0),
   price_type: z.enum(['per_metre', 'fixed']),
-  purchase_rate: z.number().min(0).optional().nullable(),
-  purchase_fixed_price: z.number().min(0).optional().nullable(),
-  rate: z.number().min(0).optional().nullable(),
-  fixed_price: z.number().min(0).optional().nullable(),
+  purchase_rate: z.preprocess(emptyStringToUndefinedNumber, z.number().min(0).optional()),
+  purchase_fixed_price: z.preprocess(emptyStringToUndefinedNumber, z.number().min(0).optional()),
+  rate: z.preprocess(emptyStringToUndefinedNumber, z.number().min(0).optional()),
+  fixed_price: z.preprocess(emptyStringToUndefinedNumber, z.number().min(0).optional()),
   quantity: z.number().int().min(0).default(0),
   length_metres: z.number().min(0).default(0),
   low_stock_threshold: z.number().int().min(0).default(5),
-});
+  })
+  .superRefine((val, ctx) => {
+    if (val.price_type === 'fixed') {
+      if (!val.purchase_fixed_price || val.purchase_fixed_price <= 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['purchase_fixed_price'],
+          message: 'Cost price is required',
+        });
+      }
+      if (!val.fixed_price || val.fixed_price <= 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['fixed_price'],
+          message: 'Selling price is required',
+        });
+      }
+
+      if (
+        typeof val.purchase_fixed_price === 'number' &&
+        typeof val.fixed_price === 'number' &&
+        val.fixed_price < val.purchase_fixed_price
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['fixed_price'],
+          message: 'Selling price must be ≥ cost price',
+        });
+      }
+    }
+
+    if (val.price_type === 'per_metre') {
+      if (!val.purchase_rate || val.purchase_rate <= 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['purchase_rate'],
+          message: 'Cost price is required',
+        });
+      }
+      if (!val.rate || val.rate <= 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['rate'],
+          message: 'Selling price is required',
+        });
+      }
+
+      if (
+        typeof val.purchase_rate === 'number' &&
+        typeof val.rate === 'number' &&
+        val.rate < val.purchase_rate
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['rate'],
+          message: 'Selling price must be ≥ cost price',
+        });
+      }
+    }
+  });
 
 type SKUFormData = z.infer<typeof skuSchema>;
 
@@ -81,6 +149,8 @@ export function SKUForm({
 }: SKUFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [filteredSubcategories, setFilteredSubcategories] = useState<Subcategory[]>([]);
+  const [marginInput, setMarginInput] = useState('');
+  const [isEditingMargin, setIsEditingMargin] = useState(false);
 
   const form = useForm<SKUFormData>({
     resolver: zodResolver(skuSchema),
@@ -94,10 +164,10 @@ export function SKUForm({
       hsn_code: '',
       gst_rate: 0,
       price_type: 'fixed',
-      purchase_rate: null,
-      purchase_fixed_price: null,
-      rate: null,
-      fixed_price: null,
+      purchase_rate: undefined,
+      purchase_fixed_price: undefined,
+      rate: undefined,
+      fixed_price: undefined,
       quantity: 0,
       length_metres: 0,
       low_stock_threshold: 5,
@@ -106,6 +176,28 @@ export function SKUForm({
 
   const priceType = form.watch('price_type');
   const categoryId = form.watch('category_id');
+
+  const watchedCost = form.watch(priceType === 'fixed' ? 'purchase_fixed_price' : 'purchase_rate');
+  const watchedSell = form.watch(priceType === 'fixed' ? 'fixed_price' : 'rate');
+
+  // RHF stores input values as strings while typing (we coerce to numbers on submit via zod preprocess).
+  // For live margin/profit display we must parse them here.
+  const costNumber = useMemo(() => {
+    const n = Number(watchedCost);
+    return Number.isFinite(n) ? n : null;
+  }, [watchedCost]);
+
+  const sellNumber = useMemo(() => {
+    const n = Number(watchedSell);
+    return Number.isFinite(n) ? n : null;
+  }, [watchedSell]);
+
+  const margin = useMemo(() => computeMargin(costNumber, sellNumber), [costNumber, sellNumber]);
+
+  useEffect(() => {
+    if (isEditingMargin) return;
+    setMarginInput(margin.marginPercent === null ? '' : margin.marginPercent.toFixed(2));
+  }, [isEditingMargin, margin.marginPercent]);
 
   useEffect(() => {
     if (categoryId) {
@@ -129,10 +221,10 @@ export function SKUForm({
         hsn_code: (sku as any).hsn_code || '',
         gst_rate: Number((sku as any).gst_rate ?? 0),
         price_type: sku.price_type,
-        purchase_rate: (sku as any).purchase_rate ?? null,
-        purchase_fixed_price: (sku as any).purchase_fixed_price ?? null,
-        rate: sku.rate,
-        fixed_price: sku.fixed_price,
+        purchase_rate: (sku as any).purchase_rate ?? undefined,
+        purchase_fixed_price: (sku as any).purchase_fixed_price ?? undefined,
+        rate: sku.rate ?? undefined,
+        fixed_price: sku.fixed_price ?? undefined,
         quantity: sku.quantity,
         length_metres: sku.length_metres,
         low_stock_threshold: sku.low_stock_threshold,
@@ -148,10 +240,10 @@ export function SKUForm({
         hsn_code: '',
         gst_rate: 0,
         price_type: 'fixed',
-        purchase_rate: null,
-        purchase_fixed_price: null,
-        rate: null,
-        fixed_price: null,
+        purchase_rate: undefined,
+        purchase_fixed_price: undefined,
+        rate: undefined,
+        fixed_price: undefined,
         quantity: 0,
         length_metres: 0,
         low_stock_threshold: 5,
@@ -170,10 +262,10 @@ export function SKUForm({
         description: data.description || null,
         hsn_code: data.hsn_code || null,
         gst_rate: data.gst_rate ?? 0,
-        purchase_rate: data.price_type === 'per_metre' ? (data.purchase_rate ?? null) : null,
-        purchase_fixed_price: data.price_type === 'fixed' ? (data.purchase_fixed_price ?? null) : null,
-        rate: data.price_type === 'per_metre' ? data.rate : null,
-        fixed_price: data.price_type === 'fixed' ? data.fixed_price : null,
+        purchase_rate: data.price_type === 'per_metre' ? data.purchase_rate! : null,
+        purchase_fixed_price: data.price_type === 'fixed' ? data.purchase_fixed_price! : null,
+        rate: data.price_type === 'per_metre' ? data.rate! : null,
+        fixed_price: data.price_type === 'fixed' ? data.fixed_price! : null,
         // IMPORTANT: DB columns are NOT NULL; keep unused stock field as 0 (never null)
         quantity: data.price_type === 'fixed' ? data.quantity : 0,
         length_metres: data.price_type === 'per_metre' ? data.length_metres : 0,
@@ -181,6 +273,18 @@ export function SKUForm({
       onClose();
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleMarginChange = (nextMargin: number) => {
+    const cost = Number(costNumber ?? 0);
+    if (!Number.isFinite(cost) || cost <= 0) return;
+
+    const nextSelling = sellingFromMargin(cost, nextMargin);
+    if (priceType === 'fixed') {
+      form.setValue('fixed_price', Number(nextSelling.toFixed(2)), { shouldDirty: true, shouldValidate: true });
+    } else {
+      form.setValue('rate', Number(nextSelling.toFixed(2)), { shouldDirty: true, shouldValidate: true });
     }
   };
 
@@ -418,7 +522,7 @@ export function SKUForm({
                               placeholder="0.00"
                               {...field}
                               value={field.value ?? ''}
-                              onChange={(e) => field.onChange(parseFloat(e.target.value) || null)}
+                              onChange={(e) => field.onChange(e.target.value as any)}
                             />
                           </FormControl>
                           <FormMessage />
@@ -437,7 +541,7 @@ export function SKUForm({
                               placeholder="0.00"
                               {...field}
                               value={field.value ?? ''}
-                              onChange={(e) => field.onChange(parseFloat(e.target.value) || null)}
+                              onChange={(e) => field.onChange(e.target.value as any)}
                             />
                           </FormControl>
                           <FormMessage />
@@ -465,7 +569,7 @@ export function SKUForm({
                               placeholder="0.00"
                               {...field}
                               value={field.value ?? ''}
-                              onChange={(e) => field.onChange(parseFloat(e.target.value) || null)}
+                              onChange={(e) => field.onChange(e.target.value as any)}
                             />
                           </FormControl>
                           <FormMessage />
@@ -484,7 +588,7 @@ export function SKUForm({
                               placeholder="0.00"
                               {...field}
                               value={field.value ?? ''}
-                              onChange={(e) => field.onChange(parseFloat(e.target.value) || null)}
+                              onChange={(e) => field.onChange(e.target.value as any)}
                             />
                           </FormControl>
                           <FormMessage />
@@ -494,6 +598,39 @@ export function SKUForm({
                   </motion.div>
                 )}
               </AnimatePresence>
+
+              <div className="rounded-lg border border-border bg-muted/20 p-3">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+                  <div className="flex-1">
+                    <Label>Margin %</Label>
+                    <Input
+                      type="number"
+                      inputMode="decimal"
+                      placeholder="0"
+                      value={marginInput}
+                      onFocus={() => setIsEditingMargin(true)}
+                      onBlur={() => {
+                        setIsEditingMargin(false);
+                        const next = Number(marginInput);
+                        if (!Number.isFinite(next)) return;
+                        handleMarginChange(next);
+                      }}
+                      onChange={(e) => setMarginInput(e.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">Auto-fills selling from cost</p>
+                  </div>
+
+                  <div className="sm:w-[180px]">
+                    <Label>Profit</Label>
+                    <div className="h-10 flex items-center justify-between rounded-md border border-input bg-muted/30 px-3 text-sm">
+                      <span>₹{Number.isFinite(margin.profit) ? margin.profit.toFixed(2) : '0.00'}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {margin.marginPercent === null ? '—' : `${margin.marginPercent.toFixed(2)}%`}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
 
             <Accordion type="single" collapsible className="w-full">

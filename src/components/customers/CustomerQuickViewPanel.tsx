@@ -14,6 +14,8 @@ import { fetchCustomerLedgerFallback } from '@/lib/customer-ledger-fallback';
 
 import type { Customer } from '@/hooks/useCustomers';
 
+const db = supabase as any;
+
 type LedgerEntryType = 'sale' | 'return' | 'payment' | 'adjustment';
 
 type LedgerRow = {
@@ -53,7 +55,7 @@ export function CustomerQuickViewPanel({ customer, onRefreshCustomerList }: Cust
     const load = async () => {
       setIsLoading(true);
       try {
-        const { data, error } = await supabase
+        const { data, error } = await db
           .from('customer_ledger')
           .select('id, created_at, entry_type, reference_id, reference_label, debit_amount, credit_amount, running_balance')
           .eq('customer_id', customer.id)
@@ -130,6 +132,9 @@ export function CustomerQuickViewPanel({ customer, onRefreshCustomerList }: Cust
     );
   }
 
+  const rawAdvance = Number((customer as any).advance_balance ?? 0);
+  const displayAdvance = Math.round(rawAdvance);
+
   return (
     <Card className="p-4">
       <div className="flex items-start justify-between gap-3 mb-4">
@@ -139,11 +144,18 @@ export function CustomerQuickViewPanel({ customer, onRefreshCustomerList }: Cust
             {customer.phone || 'No phone'}
             {customer.city ? ` • ${customer.city}` : ''}
           </div>
-          <div className="flex flex-wrap gap-2 mt-2">
-            {Number(customer.outstanding_balance || 0) > 0 && (
-              <Badge variant="destructive">Due ₹{Number(customer.outstanding_balance || 0).toFixed(0)}</Badge>
-            )}
-          </div>
+            <div className="flex flex-wrap gap-2 mt-2">
+              {Number(customer.outstanding_balance || 0) > 0 && (
+                <Badge variant="destructive">
+                  Due ₹{Math.round(Number(customer.outstanding_balance || 0))}
+                </Badge>
+              )}
+              {displayAdvance !== 0 && (
+                <Badge variant="outline" className="text-xs">
+                  Advance ₹{displayAdvance}
+                </Badge>
+              )}
+            </div>
         </div>
 
         <div className="flex flex-col gap-2">
@@ -159,8 +171,8 @@ export function CustomerQuickViewPanel({ customer, onRefreshCustomerList }: Cust
           <Button
             variant="outline"
             onClick={() => setShowAdvanceRefund(true)}
-            disabled
-            title="Feature not yet implemented"
+            disabled={displayAdvance <= 0}
+            title={displayAdvance > 0 ? 'Refund customer advance' : 'No advance balance to refund'}
           >
             Refund Advance
           </Button>

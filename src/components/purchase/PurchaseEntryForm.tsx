@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
  import { Checkbox } from '@/components/ui/checkbox';
   import { Barcode, Plus, X, Search } from 'lucide-react';
 import { forwardRef, useImperativeHandle, useRef, useState } from 'react';
+import { z } from 'zod';
  import type { PurchaseItemDraft, DiscountType } from '@/types/purchase';
  import { SKUSearchDialog } from '@/components/billing/SKUSearchDialog';
  import { useSKUs } from '@/hooks/useSKUs';
@@ -48,11 +49,61 @@ export type PurchaseEntryFormHandle = {
    },
    ref,
  ) {
+  const db = supabase as any;
   const { skus, fetchSKUs, categories, subcategories, updateSKU } = useSKUs();
   const { toast } = useToast();
   const { user } = useAuth();
 
   const [openingStockOpen, setOpeningStockOpen] = useState(false);
+
+  const skuInsertSchema = z
+    .object({
+      name: z.string().min(1),
+      price_type: z.enum(['fixed', 'per_metre']).default('fixed'),
+      purchase_fixed_price: z.number().nullable().optional(),
+      fixed_price: z.number().nullable().optional(),
+      purchase_rate: z.number().nullable().optional(),
+      rate: z.number().nullable().optional(),
+    })
+    .superRefine((val, ctx) => {
+      if (val.price_type === 'fixed') {
+        if (!val.purchase_fixed_price || val.purchase_fixed_price <= 0) {
+          ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['purchase_fixed_price'], message: 'Cost required' });
+        }
+        if (!val.fixed_price || val.fixed_price <= 0) {
+          ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['fixed_price'], message: 'Selling required' });
+        }
+
+        if (
+          typeof val.purchase_fixed_price === 'number' &&
+          typeof val.fixed_price === 'number' &&
+          val.fixed_price < val.purchase_fixed_price
+        ) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['fixed_price'],
+            message: 'Selling price must be ≥ cost price',
+          });
+        }
+      }
+
+      if (val.price_type === 'per_metre') {
+        if (!val.purchase_rate || val.purchase_rate <= 0) {
+          ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['purchase_rate'], message: 'Cost required' });
+        }
+        if (!val.rate || val.rate <= 0) {
+          ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['rate'], message: 'Selling required' });
+        }
+
+        if (typeof val.purchase_rate === 'number' && typeof val.rate === 'number' && val.rate < val.purchase_rate) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['rate'],
+            message: 'Selling price must be ≥ cost price',
+          });
+        }
+      }
+    });
 
    const searchInputRef = useRef<HTMLInputElement | null>(null);
    const qtyInputRef = useRef<HTMLInputElement | null>(null);
@@ -91,6 +142,24 @@ export type PurchaseEntryFormHandle = {
  
   const handleCreateSKU = async (draft: Partial<SKU>): Promise<SKU | null> => {
     try {
+      const validated = skuInsertSchema.safeParse({
+        name: draft.name,
+        price_type: (draft.price_type as any) ?? 'fixed',
+        purchase_fixed_price: (draft as any).purchase_fixed_price ?? null,
+        fixed_price: draft.fixed_price ?? null,
+        purchase_rate: (draft as any).purchase_rate ?? null,
+        rate: draft.rate ?? null,
+      });
+
+      if (!validated.success) {
+        toast({
+          title: 'Missing pricing',
+          description: 'Cost and Selling Price are required',
+          variant: 'destructive',
+        });
+        return null;
+      }
+
       // Capture the intended purchase quantity from the form
       const intendedPurchaseQty = draft.price_type === 'per_metre' 
         ? (draft.length_metres || 1) 
@@ -102,7 +171,7 @@ export type PurchaseEntryFormHandle = {
       const sku_code = `SKU-${timestamp}${random}`;
 
       // Insert into database
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('skus')
         .insert({
           sku_code,
@@ -113,11 +182,11 @@ export type PurchaseEntryFormHandle = {
           description: draft.description || null,
           hsn_code: (draft as any).hsn_code ?? null,
           gst_rate: (draft as any).gst_rate ?? 0,
-          price_type: draft.price_type || 'fixed',
-           purchase_fixed_price: (draft as any).purchase_fixed_price ?? null,
-           purchase_rate: (draft as any).purchase_rate ?? null,
-          fixed_price: draft.price_type === 'fixed' ? (draft.fixed_price || null) : null,
-          rate: draft.price_type === 'per_metre' ? (draft.rate || null) : null,
+          price_type: validated.data.price_type,
+          purchase_fixed_price: validated.data.price_type === 'fixed' ? validated.data.purchase_fixed_price : null,
+          purchase_rate: validated.data.price_type === 'per_metre' ? validated.data.purchase_rate : null,
+          fixed_price: validated.data.price_type === 'fixed' ? validated.data.fixed_price : null,
+          rate: validated.data.price_type === 'per_metre' ? validated.data.rate : null,
            // Stock starts at 0; never insert NULL because DB columns are NOT NULL
            quantity: 0,
            length_metres: 0,
@@ -157,6 +226,24 @@ export type PurchaseEntryFormHandle = {
 
   const handleCreateSKUWithOpening = async (data: Partial<SKU>): Promise<SKU | null> => {
     try {
+      const validated = skuInsertSchema.safeParse({
+        name: data.name,
+        price_type: (data.price_type as any) ?? 'fixed',
+        purchase_fixed_price: (data as any).purchase_fixed_price ?? null,
+        fixed_price: data.fixed_price ?? null,
+        purchase_rate: (data as any).purchase_rate ?? null,
+        rate: data.rate ?? null,
+      });
+
+      if (!validated.success) {
+        toast({
+          title: 'Missing pricing',
+          description: 'Cost and Selling Price are required',
+          variant: 'destructive',
+        });
+        return null;
+      }
+
       const timestamp = Date.now().toString(36).toUpperCase();
       const random = Math.random().toString(36).substring(2, 6).toUpperCase();
       const sku_code = data.sku_code || `SKU-${timestamp}${random}`;
@@ -174,11 +261,11 @@ export type PurchaseEntryFormHandle = {
         description: data.description || null,
         hsn_code: (data as any).hsn_code ?? null,
         gst_rate: (data as any).gst_rate ?? 0,
-        price_type: data.price_type || 'fixed',
-        purchase_fixed_price: (data as any).purchase_fixed_price ?? null,
-        purchase_rate: (data as any).purchase_rate ?? null,
-        fixed_price: data.price_type === 'fixed' ? (data.fixed_price || null) : null,
-        rate: data.price_type === 'per_metre' ? (data.rate || null) : null,
+        price_type: validated.data.price_type,
+        purchase_fixed_price: validated.data.price_type === 'fixed' ? validated.data.purchase_fixed_price : null,
+        purchase_rate: validated.data.price_type === 'per_metre' ? validated.data.purchase_rate : null,
+        fixed_price: validated.data.price_type === 'fixed' ? validated.data.fixed_price : null,
+        rate: validated.data.price_type === 'per_metre' ? validated.data.rate : null,
         quantity: data.price_type === 'fixed' ? Math.max(0, Math.floor(Number(data.quantity ?? 0))) : 0,
         length_metres: data.price_type === 'per_metre' ? Math.max(0, Number(data.length_metres ?? 0)) : 0,
         low_stock_threshold: data.low_stock_threshold || 5,
@@ -186,7 +273,7 @@ export type PurchaseEntryFormHandle = {
         updated_by: user?.id,
       };
 
-      const { data: created, error } = await supabase
+      const { data: created, error } = await db
         .from('skus')
         .insert(insertPayload)
         .select()
@@ -194,9 +281,11 @@ export type PurchaseEntryFormHandle = {
 
       if (error) throw error;
 
+      if (!created) throw new Error('Failed to create product');
+
       // Audit opening stock (no invoice)
       if (openingQty > 0) {
-        await supabase.from('inventory_logs').insert({
+        await db.from('inventory_logs').insert({
           sku_id: created.id,
           previous_quantity: 0,
           new_quantity: insertPayload.quantity,

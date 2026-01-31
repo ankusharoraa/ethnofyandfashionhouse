@@ -33,8 +33,8 @@ import { ShortcutHint } from '@/components/ui/shortcut-hint';
        </div>
      );
    }
- 
-    const cellY = density === 'compact' ? 'py-2' : 'py-3';
+    
+    const cellY = density === 'compact' ? 'py-1 text-xs' : 'py-3 text-sm';
 
     return (
       <div className="flex-1 flex flex-col min-h-0">
@@ -74,9 +74,10 @@ import { ShortcutHint } from '@/components/ui/shortcut-hint';
                key={item.id}
                 data-row-index={index}
                className={cn(
-                  "cursor-pointer transition-colors group",
-                  selectedIndex === index && "bg-muted"
-               )}
+                   "cursor-pointer transition-colors group",
+                   density === 'compact' ? 'text-xs' : 'text-sm',
+                   selectedIndex === index && "bg-muted"
+                )}
                onClick={() => onSelectRow(index)}
              >
                 <TableCell className={cn('font-medium', cellY)}>{index + 1}</TableCell>

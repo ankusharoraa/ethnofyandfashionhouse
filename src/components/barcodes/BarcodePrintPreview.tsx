@@ -3,11 +3,10 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Button } from '@/components/ui/button';
  import { Printer, Download, ArrowLeft, FileDown } from 'lucide-react';
 import { BarcodeLabelRenderer } from './BarcodeLabelRenderer';
-import type { Tables } from '@/integrations/supabase/types';
  import type { BarcodeTemplate, BarcodeCustomization } from '@/pages/BarcodePrinting';
 import { toast } from 'sonner';
 
-type SKU = Tables<'skus'>;
+import type { SKU } from '@/hooks/useSKUs';
 
 interface BarcodePrintPreviewProps {
   open: boolean;

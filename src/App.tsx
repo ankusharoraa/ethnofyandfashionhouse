@@ -18,6 +18,11 @@ import Reports from "./pages/Reports";
 import Settings from "./pages/Settings";
 import BarcodePrinting from "./pages/BarcodePrinting";
 import NotFound from "./pages/NotFound";
+import EmployeesPage from "./pages/Employees";
+import AdminDashboard from "./pages/admin/AdminDashboard";
+import AdminShops from "./pages/admin/AdminShops";
+import AdminShopNew from "./pages/admin/AdminShopNew";
+import { RequirePlatformAdmin } from "./pages/admin/RequirePlatformAdmin";
 
 const queryClient = new QueryClient();
 
@@ -49,7 +54,32 @@ const App = () => (
             <Route path="/customers/:customerId/ledger" element={<CustomerLedger />} />
             <Route path="/suppliers" element={<Suppliers />} />
             <Route path="/reports" element={<Reports />} />
+             <Route path="/employees" element={<EmployeesPage />} />
             <Route path="/settings" element={<Settings />} />
+            <Route
+              path="/admin"
+              element={
+                <RequirePlatformAdmin>
+                  <AdminDashboard />
+                </RequirePlatformAdmin>
+              }
+            />
+            <Route
+              path="/admin/shops"
+              element={
+                <RequirePlatformAdmin>
+                  <AdminShops />
+                </RequirePlatformAdmin>
+              }
+            />
+            <Route
+              path="/admin/shops/new"
+              element={
+                <RequirePlatformAdmin>
+                  <AdminShopNew />
+                </RequirePlatformAdmin>
+              }
+            />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

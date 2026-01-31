@@ -35,6 +35,18 @@ export default function Auth() {
   const navigate = useNavigate();
   const { toast } = useToast();
 
+  const withTimeout = async <T,>(promise: Promise<T>, ms = 15000): Promise<T> => {
+    let timeoutId: number | undefined;
+    const timeout = new Promise<T>((_, reject) => {
+      timeoutId = window.setTimeout(() => reject(new Error('Request timed out. Please try again.')), ms);
+    });
+    try {
+      return await Promise.race([promise, timeout]);
+    } finally {
+      if (timeoutId) window.clearTimeout(timeoutId);
+    }
+  };
+
   const form = useForm<AuthFormData>({
     resolver: zodResolver(authSchema),
     defaultValues: {
@@ -52,7 +64,7 @@ export default function Auth() {
     setIsLoading(true);
     try {
       if (mode === 'signin') {
-        const { error } = await signIn(data.email, data.password);
+        const { error } = await withTimeout(signIn(data.email, data.password));
         if (error) {
           let message = 'Invalid credentials';
           if (error.message.includes('Invalid login credentials')) {
@@ -75,7 +87,7 @@ export default function Auth() {
         });
         // Navigation handled by auth state change detecting user
       } else {
-        const { error } = await signUp(data.email, data.password, data.fullName);
+        const { error } = await withTimeout(signUp(data.email, data.password, data.fullName));
         if (error) {
           let message = 'Could not create account';
           if (error.message.includes('already registered')) {
@@ -96,6 +108,13 @@ export default function Auth() {
         });
         // Navigation handled by auth state change detecting user
       }
+    } catch (e: any) {
+      console.error('Auth error:', e);
+      toast({
+        title: 'Authentication error',
+        description: e?.message ?? 'Something went wrong. Please try again.',
+        variant: 'destructive',
+      });
     } finally {
       setIsLoading(false);
     }
@@ -196,6 +215,7 @@ export default function Auth() {
                           type="email"
                           placeholder="you@example.com"
                           className="pl-10"
+                          autoComplete={mode === 'signin' ? 'username' : 'email'}
                           {...field}
                         />
                       </div>
@@ -218,6 +238,7 @@ export default function Auth() {
                           type={showPassword ? 'text' : 'password'}
                           placeholder="••••••••"
                           className="pl-10 pr-10"
+                          autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
                           {...field}
                         />
                         <button

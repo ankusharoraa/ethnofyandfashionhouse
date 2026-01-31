@@ -81,6 +81,7 @@ export function PaymentDialog({
   };
 
   const customerAdvance = (selectedCustomer as any)?.advance_balance ?? 0;
+  const canUseAdvance = !isSale && !!selectedCustomer && customerAdvance > 0;
 
   const cash = parseFloat(cashAmount) || 0;
   const upi = parseFloat(upiAmount) || 0;
@@ -112,6 +113,16 @@ export function PaymentDialog({
     return Math.max(credit, remainingPayable);
   }, [credit, remainingPayable, selectedCustomer]);
 
+  const existingDue = selectedCustomer?.outstanding_balance ?? 0;
+  const existingAdvance = customerAdvance;
+  const displayExistingDue = Math.round(existingDue);
+  const displayExistingAdvance = Math.max(0, Math.round(existingAdvance));
+  const dueFromThisBill = selectedCustomer ? Math.max(0, effectiveCredit) : 0;
+  const newDueAfterBill = existingDue + dueFromThisBill;
+  const advanceUsedOnThisBill = isSale ? effectiveAdvanceUsed : (canUseAdvance ? advUsed : 0);
+  const overpayToAdvance = isSale ? overpay : 0;
+  const newAdvanceAfterBill = existingAdvance - advanceUsedOnThisBill + overpayToAdvance;
+
   const handleConfirm = () => {
     if (creditDisabled || overpayDisabled || walkInPartialDisabled) return;
     const confirmOverpay = overpay > 0 ? window.confirm(`Extra ₹${overpay.toFixed(0)} will be added to customer advance. Continue?`) : true;
@@ -129,8 +140,6 @@ export function PaymentDialog({
       confirmOverpay,
     });
   };
-
-  const canUseAdvance = !isSale && !!selectedCustomer && customerAdvance > 0;
 
   const handleUseMaxAdvance = () => {
     if (!canUseAdvance) return;
@@ -162,16 +171,16 @@ export function PaymentDialog({
                 <span className="text-muted-foreground">Customer</span>
                 <span className="font-medium">{selectedCustomer.name}</span>
               </div>
-              {selectedCustomer.outstanding_balance > 0 && (
+               {displayExistingDue > 0 && (
                 <div className="flex justify-between text-destructive">
                   <span>Existing Due</span>
-                  <span className="font-semibold">₹{selectedCustomer.outstanding_balance.toFixed(0)}</span>
+                   <span className="font-semibold">₹{displayExistingDue}</span>
                 </div>
               )}
 
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Advance balance</span>
-                <span className="font-semibold">₹{Math.max(0, customerAdvance).toFixed(0)}</span>
+                <span className="font-semibold">₹{displayExistingAdvance}</span>
               </div>
             </div>
           )}
@@ -189,6 +198,44 @@ export function PaymentDialog({
             showCustomerAdvance={!!selectedCustomer}
             advanceLabel={isSale ? 'Advance auto-applied' : 'Advance used'}
           />
+
+          {selectedCustomer && (
+            <div className="bg-muted/60 rounded-md p-2 text-[11px] space-y-1">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Existing due</span>
+                <span>₹{displayExistingDue}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Due from this bill</span>
+                <span>₹{Math.round(dueFromThisBill)}</span>
+              </div>
+              <div className="flex justify-between font-semibold">
+                <span>Total due after this bill</span>
+                <span>₹{Math.round(newDueAfterBill)}</span>
+              </div>
+
+              <div className="h-px bg-border my-1" />
+
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Existing advance</span>
+                <span>₹{displayExistingAdvance}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Advance used on this bill</span>
+                <span>-₹{advanceUsedOnThisBill.toFixed(0)}</span>
+              </div>
+              {overpayToAdvance > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Extra added to advance</span>
+                  <span>+₹{overpayToAdvance.toFixed(0)}</span>
+                </div>
+              )}
+              <div className="flex justify-between font-semibold">
+                <span>Advance after this bill</span>
+                <span>₹{newAdvanceAfterBill.toFixed(0)}</span>
+              </div>
+            </div>
+          )}
 
           {/* Split payment fields */}
           <div className="space-y-2">

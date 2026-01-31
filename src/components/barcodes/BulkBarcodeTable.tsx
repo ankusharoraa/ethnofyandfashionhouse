@@ -7,9 +7,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent } from '@/components/ui/card';
  import { AlertCircle, ArrowUpDown } from 'lucide-react';
  import { Button } from '@/components/ui/button';
-import type { Tables } from '@/integrations/supabase/types';
-
-type SKU = Tables<'skus'>;
+import type { SKU } from '@/hooks/useSKUs';
  
  type SortField = 'code' | 'name' | 'barcode' | 'qty';
  type SortDirection = 'asc' | 'desc';

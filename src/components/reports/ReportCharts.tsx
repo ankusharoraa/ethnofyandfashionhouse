@@ -66,6 +66,7 @@ function hslVar(name: string) {
 }
 
 export function ReportCharts() {
+  const db = supabase as any;
   const [fromDate, setFromDate] = useState<Date>(() => startOfDay(subDays(new Date(), 6)));
   const [toDate, setToDate] = useState<Date>(() => endOfDay(new Date()));
   const [loading, setLoading] = useState(false);
@@ -90,7 +91,7 @@ export function ReportCharts() {
         const toIso = endOfDay(toDate).toISOString();
 
         // Purchases (stock-in) from purchase invoices
-        const purchaseReq = supabase
+        const purchaseReq = db
           .from("invoice_items")
           .select(
             `
@@ -108,7 +109,7 @@ export function ReportCharts() {
           .limit(1000);
 
         // Sales items for revenue+cost+profit + top products + category profit
-        const salesItemsReq = supabase
+        const salesItemsReq = db
           .from("invoice_items")
           .select(
             `
@@ -131,7 +132,7 @@ export function ReportCharts() {
           .limit(1000);
 
         // Sales invoices (for peak hours, payment split)
-        const salesInvoicesReq = supabase
+        const salesInvoicesReq = db
           .from("invoices")
           .select("id, created_at, total_amount, payment_method, pending_amount")
           .gte("created_at", fromIso)
@@ -141,7 +142,7 @@ export function ReportCharts() {
           .limit(1000);
 
         // Payments received (for credit activity)
-        const paymentsReq = supabase
+        const paymentsReq = db
           .from("customer_payments")
           .select("id, amount, payment_date")
           .gte("payment_date", fromIso)

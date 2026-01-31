@@ -28,6 +28,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const db = supabase as any;
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -36,7 +37,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const fetchIsOwner = async (userId: string) => {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('user_roles')
         .select('role')
         .eq('user_id', userId)
@@ -63,7 +64,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         null;
 
       // Server-side bootstrap: ensures profile exists + assigns first-ever user as owner.
-      const { error } = await supabase.rpc('ensure_user_bootstrap', {
+      const { error } = await db.rpc('ensure_user_bootstrap', {
         p_user_id: authUser.id,
         p_full_name: fullName,
       });
@@ -78,7 +79,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const fetchProfile = async (userId: string) => {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('profiles')
         .select('*')
         .eq('user_id', userId)

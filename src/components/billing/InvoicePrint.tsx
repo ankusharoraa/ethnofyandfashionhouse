@@ -24,6 +24,15 @@ export const InvoicePrint = forwardRef<HTMLDivElement, InvoicePrintProps>(
       <div ref={ref} className="bg-white text-black p-8 max-w-[800px] mx-auto print:p-4">
         {/* Header */}
         <div className="text-center border-b-2 border-black pb-4 mb-4">
+          {shopSettings?.logo_url && (
+            <div className="mb-3 flex justify-center">
+              <img
+                src={shopSettings.logo_url}
+                alt={`${shopSettings.shop_name || 'Shop'} logo`}
+                className="max-h-20 max-w-[220px] object-contain"
+              />
+            </div>
+          )}
           <h1 className="text-2xl font-bold uppercase">
             {shopSettings?.shop_name || 'My Shop'}
           </h1>

@@ -68,6 +68,20 @@ export function ShopSettingsForm() {
         </CardDescription>
       </CardHeader>
       <CardContent>
+        {settings?.logo_url && (
+          <div className="mb-4 flex items-center justify-between gap-4 rounded-lg border bg-muted/30 p-3">
+            <div className="min-w-0">
+              <p className="text-sm font-medium">Current logo</p>
+              <p className="text-xs text-muted-foreground truncate">Used in sidebar and invoices</p>
+            </div>
+            <img
+              src={settings.logo_url}
+              alt={`${settings.shop_name || 'Shop'} logo`}
+              className="h-12 w-32 object-contain"
+              loading="lazy"
+            />
+          </div>
+        )}
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Shop Name */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

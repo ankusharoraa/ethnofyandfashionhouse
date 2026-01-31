@@ -15,7 +15,15 @@ interface CustomerCardProps {
 }
 
 export function CustomerCard({ customer, onSelect, onEdit, onDelete, onReceivePayment, onViewLedger }: CustomerCardProps) {
-  const hasBalance = customer.outstanding_balance > 0;
+  const rawDue = customer.outstanding_balance ?? 0;
+  const rawAdvance = (customer as any).advance_balance ?? 0;
+
+  const displayDue = Math.round(rawDue);
+  const displayAdvance = Math.round(rawAdvance);
+
+  const hasBalance = displayDue !== 0;
+  const hasAdvance = displayAdvance !== 0;
+  const hasPurchases = (customer.total_purchases ?? 0) > 0;
 
   return (
     <motion.div
@@ -59,15 +67,27 @@ export function CustomerCard({ customer, onSelect, onEdit, onDelete, onReceivePa
             </div>
 
             {/* Purchase Info */}
-            <div className="flex items-center gap-3 mt-3">
-              <Badge variant="outline" className="text-xs">
-                <IndianRupee className="w-3 h-3 mr-1" />
-                Total: ₹{customer.total_purchases.toFixed(0)}
-              </Badge>
+            <div className="flex flex-wrap items-center gap-2 mt-3">
+              {hasPurchases && (
+                <Badge variant="outline" className="text-xs">
+                  <IndianRupee className="w-3 h-3 mr-1" />
+                  Total: ₹{customer.total_purchases.toFixed(0)}
+                </Badge>
+              )}
               {hasBalance && (
                 <Badge variant="destructive" className="text-xs">
-                  Due ₹{customer.outstanding_balance.toFixed(0)}
+                  Due ₹{displayDue}
                 </Badge>
+              )}
+              {hasAdvance && (
+                <Badge variant="outline" className="text-xs">
+                  Advance ₹{displayAdvance}
+                </Badge>
+              )}
+              {!hasPurchases && !hasBalance && !hasAdvance && (
+                <p className="text-[11px] text-muted-foreground">
+                  No purchases yet
+                </p>
               )}
             </div>
           </div>

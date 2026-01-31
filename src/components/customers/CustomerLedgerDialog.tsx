@@ -13,6 +13,8 @@ import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import type { Customer } from '@/hooks/useCustomers';
 
+const db = supabase as any;
+
 interface LedgerEntry {
   id: string;
   date: string;
@@ -58,9 +60,9 @@ export function CustomerLedgerDialog({
     setIsLoading(true);
     try {
       // Fetch latest balances (customer prop may not include advance_balance)
-      const { data: customerRow, error: customerErr } = await supabase
+      const { data: customerRow, error: customerErr } = await db
         .from('customers')
-        .select('outstanding_balance')
+        .select('outstanding_balance, advance_balance')
         .eq('id', customer.id)
         .maybeSingle();
 
@@ -71,17 +73,17 @@ export function CustomerLedgerDialog({
       if (customerRow) {
         setBalances({
           outstanding: Number(customerRow.outstanding_balance ?? customer.outstanding_balance ?? 0),
-          advance: 0, // Advance payments not yet implemented
+          advance: Number((customerRow as any).advance_balance ?? 0),
         });
       } else {
         setBalances({
           outstanding: Number(customer.outstanding_balance ?? 0),
-          advance: 0,
+          advance: Number((customer as any).advance_balance ?? 0),
         });
       }
 
       // Fetch all invoices for this customer (sales and returns)
-       const { data: invoiceData } = await supabase
+       const { data: invoiceData } = await db
         .from('invoices')
          .select('id, invoice_number, invoice_type, created_at, total_amount, pending_amount, status')
         .eq('customer_id', customer.id)
@@ -89,7 +91,7 @@ export function CustomerLedgerDialog({
         .order('created_at', { ascending: true });
 
       // Fetch payments for this customer
-      const { data: paymentData } = await supabase
+      const { data: paymentData } = await db
         .from('customer_payments')
         .select('id, payment_date, amount, payment_method, notes, invoice_id')
         .eq('customer_id', customer.id)
@@ -98,7 +100,7 @@ export function CustomerLedgerDialog({
       // Fetch split payment breakdowns (cash/upi/card rows) for completed invoices
       const invoiceIds = (invoiceData || []).map((inv) => inv.id).filter(Boolean);
       if (invoiceIds.length > 0) {
-        const { data: invoicePayments } = await supabase
+        const { data: invoicePayments } = await db
           .from('invoice_payments')
           .select('invoice_id, amount, payment_method')
           .in('invoice_id', invoiceIds);

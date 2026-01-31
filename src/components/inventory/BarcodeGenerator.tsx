@@ -7,6 +7,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import type { SKU } from '@/hooks/useSKUs';
 
+const db = supabase as any;
+
 interface BarcodeGeneratorProps {
   skus: SKU[];
   onComplete: () => void;
@@ -53,7 +55,7 @@ export function BarcodeGenerator({ skus, onComplete }: BarcodeGeneratorProps) {
         const batch = updates.slice(i, i + 10);
         
         for (const update of batch) {
-          const { error } = await supabase
+          const { error } = await db
             .from('skus')
             .update({ barcode: update.barcode })
             .eq('id', update.id);
@@ -65,7 +67,7 @@ export function BarcodeGenerator({ skus, onComplete }: BarcodeGeneratorProps) {
 
       toast({
         title: 'Success',
-        description: `Generated barcodes for ${updates.length} products`,
+        description: `Generated barcodes for ${updates.length} products. You can now use Barcode Label Printing to print them.`,
       });
 
       onComplete();

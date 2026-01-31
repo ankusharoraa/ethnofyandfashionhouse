@@ -182,7 +182,7 @@ export function ReturnInvoiceDialog({
             : item.return_quantity * item.unit_price,
       }));
 
-      const { data, error } = await supabase.rpc('process_invoice_return', {
+      const { data, error } = await (supabase as any).rpc('process_invoice_return', {
         p_parent_invoice_id: invoice.id,
         p_return_items: returnItems,
         p_notes: notes || null,

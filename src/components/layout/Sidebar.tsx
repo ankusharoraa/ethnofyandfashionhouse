@@ -11,9 +11,11 @@ import {
   User,
   TrendingUp,
   TrendingDown,
+  Shield,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
+import { useShopSettings } from '@/hooks/useShopSettings';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -25,6 +27,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { usePlatformAdmin } from "@/hooks/usePlatformAdmin";
+
+const adminItems = [{ icon: Shield, label: "Admin", href: "/admin" }];
 
 const primaryItems = [
   { icon: Home, label: 'Dashboard', href: '/dashboard' },
@@ -37,6 +42,7 @@ const primaryItems = [
 const peopleItems = [
   { icon: User, label: 'Customers', href: '/customers' },
   { icon: User, label: 'Suppliers', href: '/suppliers' },
+  { icon: User, label: 'Employees', href: '/employees' },
 ];
 
 const toolsItems = [
@@ -79,6 +85,8 @@ function NavItem(props: { href: string; label: string; icon: any; isActive: bool
 export function Sidebar() {
   const location = useLocation();
   const { profile, signOut } = useAuth();
+  const { isPlatformAdmin } = usePlatformAdmin();
+  const { settings: shopSettings } = useShopSettings();
 
   const initials = profile?.full_name
     ?.split(' ')
@@ -91,12 +99,25 @@ export function Sidebar() {
       {/* Logo */}
       <div className="p-6 border-b border-border">
         <Link to="/dashboard" className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center">
-            <Package className="w-5 h-5 text-primary-foreground" />
-          </div>
+          {shopSettings?.logo_url ? (
+            <img
+              src={shopSettings.logo_url}
+              alt={`${shopSettings.shop_name || 'Shop'} logo`}
+              className="w-10 h-10 rounded-xl object-cover border border-border"
+              loading="lazy"
+            />
+          ) : (
+            <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center">
+              <Package className="w-5 h-5 text-primary-foreground" />
+            </div>
+          )}
           <div>
-            <h1 className="font-semibold text-foreground">SuitStock</h1>
-            <p className="text-xs text-muted-foreground hindi">सूट स्टॉक</p>
+            <h1 className="font-semibold text-foreground truncate">
+              {shopSettings?.shop_name || 'SuitStock'}
+            </h1>
+            <p className="text-xs text-muted-foreground hindi truncate">
+              {shopSettings?.shop_name_hindi || 'सूट स्टॉक'}
+            </p>
           </div>
         </Link>
       </div>
@@ -143,6 +164,18 @@ export function Sidebar() {
             </div>
           </CollapsibleContent>
         </Collapsible>
+
+        {isPlatformAdmin && (
+          <>
+            <NavSectionLabel>Admin</NavSectionLabel>
+            <div className="space-y-1">
+              {adminItems.map((item) => {
+                const isActive = location.pathname === item.href || location.pathname.startsWith(item.href);
+                return <NavItem key={item.href} {...item} isActive={isActive} />;
+              })}
+            </div>
+          </>
+        )}
       </nav>
 
       {/* User Profile */}

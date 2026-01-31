@@ -16,12 +16,14 @@ export interface Customer {
   notes: string | null;
   total_purchases: number;
   outstanding_balance: number;
+  advance_balance?: number;
   created_by: string | null;
   created_at: string;
   updated_at: string;
 }
 
 export function useCustomers() {
+  const db = supabase as any;
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
@@ -30,7 +32,7 @@ export function useCustomers() {
   const fetchCustomers = async () => {
     setIsLoading(true);
     try {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('customers')
         .select('*')
         .order('name');
@@ -52,7 +54,7 @@ export function useCustomers() {
   };
 
   const createCustomer = async (customer: Partial<Customer>) => {
-    const { data, error } = await supabase
+    const { data, error } = await db
       .from('customers')
       .insert({
         name: customer.name!,
@@ -88,7 +90,7 @@ export function useCustomers() {
   };
 
   const updateCustomer = async (id: string, updates: Partial<Customer>) => {
-    const { data, error } = await supabase
+    const { data, error } = await db
       .from('customers')
       .update(updates)
       .eq('id', id)
@@ -114,7 +116,7 @@ export function useCustomers() {
   };
 
   const deleteCustomer = async (id: string) => {
-    const { error } = await supabase.from('customers').delete().eq('id', id);
+    const { error } = await db.from('customers').delete().eq('id', id);
 
     if (error) {
       console.error('Error deleting customer:', error);
@@ -135,7 +137,7 @@ export function useCustomers() {
   };
 
   const findByPhone = async (phone: string) => {
-    const { data, error } = await supabase
+    const { data, error } = await db
       .from('customers')
       .select('*')
       .eq('phone', phone)
