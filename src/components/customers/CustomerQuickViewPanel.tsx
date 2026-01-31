@@ -10,6 +10,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { CustomerPaymentDialog } from '@/components/customers/CustomerPaymentDialog';
 import { CustomerAdvanceRefundDialog } from '@/components/customers/CustomerAdvanceRefundDialog';
 import { supabase } from '@/integrations/supabase/client';
+import { fetchCustomerLedgerFallback } from '@/lib/customer-ledger-fallback';
 
 import type { Customer } from '@/hooks/useCustomers';
 
@@ -39,6 +40,7 @@ export function CustomerQuickViewPanel({ customer, onRefreshCustomerList }: Cust
   const [isLoading, setIsLoading] = useState(false);
   const [showReceivePayment, setShowReceivePayment] = useState(false);
   const [showAdvanceRefund, setShowAdvanceRefund] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     if (!customer?.id) {
@@ -51,8 +53,28 @@ export function CustomerQuickViewPanel({ customer, onRefreshCustomerList }: Cust
     const load = async () => {
       setIsLoading(true);
       try {
-        // Ledger view not implemented yet - show empty state
-        if (!cancelled) setRows([]);
+        const { data, error } = await supabase
+          .from('customer_ledger')
+          .select('id, created_at, entry_type, reference_id, reference_label, debit_amount, credit_amount, running_balance')
+          .eq('customer_id', customer.id)
+          .order('created_at', { ascending: false })
+          .limit(PAGE_SIZE);
+
+        if (error) throw error;
+
+        if (!cancelled) {
+            const rows = (data || []) as LedgerRow[];
+            if (rows.length > 0) {
+              setRows(rows);
+              return;
+            }
+
+            const fallback = await fetchCustomerLedgerFallback({
+              customerId: customer.id,
+              limit: PAGE_SIZE,
+            });
+            setRows((fallback as unknown as LedgerRow[]) || []);
+        }
       } catch (e) {
         console.error('Failed to load quick ledger preview:', e);
         if (!cancelled) setRows([]);
@@ -66,7 +88,7 @@ export function CustomerQuickViewPanel({ customer, onRefreshCustomerList }: Cust
     return () => {
       cancelled = true;
     };
-  }, [customer?.id]);
+  }, [customer?.id, refreshKey]);
 
   const getEntryIcon = (type: LedgerEntryType) => {
     switch (type) {
@@ -96,8 +118,8 @@ export function CustomerQuickViewPanel({ customer, onRefreshCustomerList }: Cust
 
   const handlePaymentSuccess = async () => {
     await onRefreshCustomerList();
-    // Reload would happen here when ledger is implemented
-    setRows([]);
+    // Reload ledger preview after recording a payment.
+    setRefreshKey((v) => v + 1);
   };
 
   if (!customer) {

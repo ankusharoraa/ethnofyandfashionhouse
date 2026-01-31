@@ -56,7 +56,8 @@ export function usePurchaseRecommendations() {
     setIsLoading(true);
     setError(null);
     try {
-      const { data, error } = await supabase.rpc("purchase_recommendations_report", {
+      // Custom analytics RPC not present in generated types – cast client to any
+      const { data, error } = await (supabase as any).rpc("purchase_recommendations_report", {
         p_as_of: asOfIso,
         p_lookback_days: 90,
         p_horizon_days: 30,
@@ -78,7 +79,7 @@ export function usePurchaseRecommendations() {
   const upsertOverride = useCallback(
     async (skuId: string, patch: { override_recommended_qty?: number | null; override_status?: ReorderStatus | null; note?: string | null }) => {
       if (!user) return;
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from("sku_reorder_overrides")
         .upsert(
           {
@@ -101,7 +102,10 @@ export function usePurchaseRecommendations() {
   const clearOverride = useCallback(
     async (skuId: string) => {
       if (!user) return;
-      const { error } = await supabase.from("sku_reorder_overrides").delete().eq("sku_id", skuId);
+      const { error } = await (supabase as any)
+        .from("sku_reorder_overrides")
+        .delete()
+        .eq("sku_id", skuId);
       if (error) {
         toast({ title: "Error", description: error.message, variant: "destructive" });
         return;

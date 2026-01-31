@@ -249,39 +249,6 @@ export type Database = {
         }
         Relationships: []
       }
-      dead_stock_actions: {
-        Row: {
-          created_at: string
-          discount_percent: number | null
-          id: string
-          marked_clearance: boolean
-          note: string | null
-          sku_id: string
-          updated_at: string
-          updated_by: string | null
-        }
-        Insert: {
-          created_at?: string
-          discount_percent?: number | null
-          id?: string
-          marked_clearance?: boolean
-          note?: string | null
-          sku_id: string
-          updated_at?: string
-          updated_by?: string | null
-        }
-        Update: {
-          created_at?: string
-          discount_percent?: number | null
-          id?: string
-          marked_clearance?: boolean
-          note?: string | null
-          sku_id?: string
-          updated_at?: string
-          updated_by?: string | null
-        }
-        Relationships: []
-      }
       inventory_logs: {
         Row: {
           change_type: string
@@ -427,6 +394,41 @@ export type Database = {
             columns: ["sku_id"]
             isOneToOne: false
             referencedRelation: "skus"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      invoice_payments: {
+        Row: {
+          amount: number
+          created_at: string
+          created_by: string | null
+          id: string
+          invoice_id: string
+          payment_method: Database["public"]["Enums"]["payment_method"]
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          invoice_id: string
+          payment_method: Database["public"]["Enums"]["payment_method"]
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          invoice_id?: string
+          payment_method?: Database["public"]["Enums"]["payment_method"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoice_payments_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
             referencedColumns: ["id"]
           },
         ]
@@ -591,30 +593,6 @@ export type Database = {
         }
         Relationships: []
       }
-      profit_settings: {
-        Row: {
-          id: string
-          min_margin_pct: number
-          min_profit_per_unit: number
-          updated_at: string
-          updated_by: string | null
-        }
-        Insert: {
-          id?: string
-          min_margin_pct?: number
-          min_profit_per_unit?: number
-          updated_at?: string
-          updated_by?: string | null
-        }
-        Update: {
-          id?: string
-          min_margin_pct?: number
-          min_profit_per_unit?: number
-          updated_at?: string
-          updated_by?: string | null
-        }
-        Relationships: []
-      }
       shop_settings: {
         Row: {
           address: string | null
@@ -666,75 +644,6 @@ export type Database = {
           tagline?: string | null
           terms_and_conditions?: string | null
           updated_at?: string
-        }
-        Relationships: []
-      }
-      sku_profit_overrides: {
-        Row: {
-          cost_override: number | null
-          created_at: string
-          id: string
-          min_margin_pct_override: number | null
-          min_profit_per_unit_override: number | null
-          note: string | null
-          sku_id: string
-          updated_at: string
-          updated_by: string | null
-        }
-        Insert: {
-          cost_override?: number | null
-          created_at?: string
-          id?: string
-          min_margin_pct_override?: number | null
-          min_profit_per_unit_override?: number | null
-          note?: string | null
-          sku_id: string
-          updated_at?: string
-          updated_by?: string | null
-        }
-        Update: {
-          cost_override?: number | null
-          created_at?: string
-          id?: string
-          min_margin_pct_override?: number | null
-          min_profit_per_unit_override?: number | null
-          note?: string | null
-          sku_id?: string
-          updated_at?: string
-          updated_by?: string | null
-        }
-        Relationships: []
-      }
-      sku_reorder_overrides: {
-        Row: {
-          created_at: string
-          id: string
-          note: string | null
-          override_recommended_qty: number | null
-          override_status: string | null
-          sku_id: string
-          updated_at: string
-          updated_by: string | null
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          note?: string | null
-          override_recommended_qty?: number | null
-          override_status?: string | null
-          sku_id: string
-          updated_at?: string
-          updated_by?: string | null
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          note?: string | null
-          override_recommended_qty?: number | null
-          override_status?: string | null
-          sku_id?: string
-          updated_at?: string
-          updated_by?: string | null
         }
         Relationships: []
       }
@@ -1117,14 +1026,25 @@ export type Database = {
         Args: { p_customer_id: string }
         Returns: undefined
       }
-      cancel_invoice: { Args: { p_invoice_id: string }; Returns: Json }
-      cancel_purchase_invoice: { Args: { p_invoice_id: string }; Returns: Json }
       complete_invoice: {
         Args: {
           p_amount_paid?: number
           p_customer_id?: string
           p_invoice_id: string
           p_payment_method?: Database["public"]["Enums"]["payment_method"]
+        }
+        Returns: Json
+      }
+      complete_invoice_split: {
+        Args: {
+          p_advance_used?: number
+          p_card?: number
+          p_cash?: number
+          p_confirm_overpay?: boolean
+          p_credit?: number
+          p_customer_id?: string
+          p_invoice_id: string
+          p_upi?: number
         }
         Returns: Json
       }
@@ -1138,26 +1058,12 @@ export type Database = {
       }
       dead_stock_analysis: {
         Args: {
-          p_as_of?: string
-          p_fast_days?: number
-          p_never_sold_dead_days?: number
-          p_slow_days?: number
+          p_as_of: string
+          p_fast_days: number
+          p_never_sold_dead_days: number
+          p_slow_days: number
         }
-        Returns: {
-          avg_unit_cost: number
-          blocked_value: number
-          discount_percent: number
-          last_sold_at: string
-          marked_clearance: boolean
-          movement_bucket: string
-          note: string
-          on_hand_units: number
-          price_type: Database["public"]["Enums"]["price_type"]
-          sku_code: string
-          sku_created_at: string
-          sku_id: string
-          sku_name: string
-        }[]
+        Returns: Json
       }
       ensure_user_bootstrap: {
         Args: { p_full_name?: string; p_user_id: string }
@@ -1169,24 +1075,6 @@ export type Database = {
       get_customer_running_balance: {
         Args: { p_customer_id: string }
         Returns: number
-      }
-      get_returnable_items: {
-        Args: { p_invoice_id: string }
-        Returns: {
-          line_total: number
-          original_length: number
-          original_quantity: number
-          price_type: Database["public"]["Enums"]["price_type"]
-          rate: number
-          returnable_length: number
-          returnable_quantity: number
-          returned_length: number
-          returned_quantity: number
-          sku_code: string
-          sku_id: string
-          sku_name: string
-          unit_price: number
-        }[]
       }
       get_supplier_running_balance: {
         Args: { p_supplier_id: string }
@@ -1218,64 +1106,20 @@ export type Database = {
       }
       profit_per_sku_report: {
         Args: {
-          p_cost_basis?: string
+          p_cost_basis: string
           p_from: string
-          p_revenue_mode?: string
+          p_revenue_mode: string
           p_to: string
         }
-        Returns: {
-          avg_discount_percent: number
-          cost_source: string
-          flag_low_margin: boolean
-          flag_low_margin_high_volume: boolean
-          flag_negligible_profit: boolean
-          last_purchase_at: string
-          last_purchase_unit_cost: number
-          margin_pct: number
-          min_margin_pct_used: number
-          min_profit_per_unit_used: number
-          note: string
-          price_type: Database["public"]["Enums"]["price_type"]
-          profit_per_unit: number
-          profit_total: number
-          revenue: number
-          sku_code: string
-          sku_id: string
-          sku_name: string
-          unit_cost_used: number
-          unit_sell_avg: number
-          units_sold: number
-        }[]
+        Returns: Json
       }
       purchase_recommendations_report: {
         Args: {
-          p_as_of?: string
-          p_horizon_days?: number
-          p_lookback_days?: number
+          p_as_of: string
+          p_horizon_days: number
+          p_lookback_days: number
         }
-        Returns: {
-          avg_daily_3mo: number
-          avg_daily_last_year: number
-          avg_daily_used: number
-          demand_source: string
-          final_reason: string
-          final_recommended_qty: number
-          final_status: string
-          need_horizon: number
-          override_note: string
-          override_recommended_qty: number
-          override_status: string
-          price_type: Database["public"]["Enums"]["price_type"]
-          reason_system: string
-          recommended_system: number
-          sku_code: string
-          sku_id: string
-          sku_name: string
-          status_system: string
-          stock_on_hand: number
-          units_sold_last_year: number
-          units_sold_lookback: number
-        }[]
+        Returns: Json
       }
       record_customer_payment: {
         Args: {

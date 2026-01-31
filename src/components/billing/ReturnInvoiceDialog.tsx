@@ -75,13 +75,15 @@ export function ReturnInvoiceDialog({
     
     setIsLoading(true);
     try {
-      const { data, error } = await supabase.rpc('get_returnable_items', {
+      // Cast to any so we can call a custom RPC that isn't present in generated types
+      const { data, error } = await (supabase as any).rpc('get_returnable_items', {
         p_invoice_id: invoice.id,
       });
 
       if (error) throw error;
 
-      const returnableItems: ReturnableItem[] = (data || []).map((item: any) => ({
+      const rows: any[] = (data as any[] | null) ?? [];
+      const returnableItems: ReturnableItem[] = rows.map((item: any) => ({
         ...item,
         selected: false,
         return_quantity: 0,

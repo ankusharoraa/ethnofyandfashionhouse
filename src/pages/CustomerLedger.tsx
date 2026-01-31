@@ -18,6 +18,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { supabase } from '@/integrations/supabase/client';
 import { CustomerPaymentDialog } from '@/components/customers/CustomerPaymentDialog';
 import { CustomerAdvanceRefundDialog } from '@/components/customers/CustomerAdvanceRefundDialog';
+import { fetchCustomerLedgerFallback } from '@/lib/customer-ledger-fallback';
 
 type LedgerEntryType = 'sale' | 'return' | 'payment' | 'adjustment';
 
@@ -49,6 +50,32 @@ type PaymentRow = {
   invoice_id: string | null;
 };
 
+type InvoicePaymentSplitRow = {
+  invoice_id: string;
+  amount: number;
+  payment_method: string;
+};
+
+type PaymentDetailsState =
+  | {
+      kind: 'customer_payment';
+      payment: PaymentRow;
+      split?: InvoicePaymentSplitRow[];
+    }
+  | {
+      kind: 'invoice_payment';
+      invoice: {
+        id: string;
+        created_at: string;
+        invoice_number: string;
+        amount_paid: number;
+        advance_applied: number;
+        pending_amount: number;
+        total_amount: number;
+      };
+      split?: InvoicePaymentSplitRow[];
+    };
+
 const PAGE_SIZE = 50;
 
 export default function CustomerLedger() {
@@ -62,7 +89,7 @@ export default function CustomerLedger() {
   const [hasMore, setHasMore] = useState(false);
   const [page, setPage] = useState(0);
 
-  const [paymentDetails, setPaymentDetails] = useState<PaymentRow | null>(null);
+  const [paymentDetails, setPaymentDetails] = useState<PaymentDetailsState | null>(null);
   const [isPaymentLoading, setIsPaymentLoading] = useState(false);
 
   const [showReceivePayment, setShowReceivePayment] = useState(false);
@@ -103,10 +130,10 @@ export default function CustomerLedger() {
       }
 
       setCustomer(cust as CustomerRow);
-
-      // Note: Ledger view not yet implemented
-      setLedgerRows([]);
-      setHasMore(false);
+      // Load first page of ledger rows
+      const { rows, hasMore: more } = await fetchLedgerPage(0);
+      setLedgerRows(rows);
+      setHasMore(more);
       setPage(0);
     } catch (e) {
       console.error('Failed to load customer ledger page:', e);
@@ -121,14 +148,50 @@ export default function CustomerLedger() {
   };
 
   const fetchLedgerPage = async (pageIndex: number) => {
+    if (!customerId) {
+      return { rows: [] as LedgerRow[], hasMore: false };
+    }
+
     const from = pageIndex * PAGE_SIZE;
     const to = from + PAGE_SIZE - 1;
 
-    // Note: Ledger view not yet implemented
-    const rows: LedgerRow[] = [];
+    const { data, error, count } = await supabase
+      .from('customer_ledger')
+      .select(
+        'id, created_at, entry_type, reference_id, reference_label, debit_amount, credit_amount, running_balance',
+        { count: 'exact' },
+      )
+      .eq('customer_id', customerId)
+      // Show latest entries first to match quick ledger
+      .order('created_at', { ascending: false })
+      .range(from, to);
+
+    if (error) {
+      console.error('Failed to load customer ledger rows:', error);
+      return { rows: [] as LedgerRow[], hasMore: false };
+    }
+
+    // If the ledger table is not populated yet, fall back to invoices + payments so
+    // the user still sees their transaction history.
+    if ((data || []).length === 0 && pageIndex === 0) {
+      const fallback = await fetchCustomerLedgerFallback({
+        customerId,
+        limit: PAGE_SIZE,
+      });
+
+      return {
+        rows: (fallback as unknown as LedgerRow[]),
+        hasMore: false,
+      };
+    }
+
+    const rows = (data || []) as LedgerRow[];
+    const total = typeof count === 'number' ? count : rows.length;
+    const hasMore = to + 1 < total;
+
     return {
       rows,
-      hasMore: false,
+      hasMore,
     };
   };
 
@@ -143,6 +206,7 @@ export default function CustomerLedger() {
   const loadPayment = async (id: string) => {
     setIsPaymentLoading(true);
     try {
+      // 1) Try a direct customer payment (manual receive payment)
       const { data, error } = await supabase
         .from('customer_payments')
         .select('id, payment_date, amount, payment_method, notes, invoice_id')
@@ -150,7 +214,55 @@ export default function CustomerLedger() {
         .maybeSingle();
 
       if (error) throw error;
-      setPaymentDetails((data as PaymentRow) || null);
+
+      if (data) {
+        const payment = data as PaymentRow;
+
+        // Optional split breakdown if this payment is tied to an invoice
+        let split: InvoicePaymentSplitRow[] | undefined;
+        if (payment.invoice_id) {
+          const { data: splitRows } = await supabase
+            .from('invoice_payments')
+            .select('invoice_id, amount, payment_method')
+            .eq('invoice_id', payment.invoice_id);
+          split = (splitRows || []) as InvoicePaymentSplitRow[];
+        }
+
+        setPaymentDetails({ kind: 'customer_payment', payment, split });
+        return;
+      }
+
+      // 2) Otherwise, this ledger “payment” may reference an invoice id (split checkout payments)
+      const { data: inv, error: invErr } = await supabase
+        .from('invoices')
+        .select('id, created_at, invoice_number, amount_paid, advance_applied, pending_amount, total_amount')
+        .eq('id', id)
+        .maybeSingle();
+
+      if (invErr) throw invErr;
+      if (!inv) {
+        setPaymentDetails(null);
+        return;
+      }
+
+      const { data: splitRows } = await supabase
+        .from('invoice_payments')
+        .select('invoice_id, amount, payment_method')
+        .eq('invoice_id', inv.id);
+
+      setPaymentDetails({
+        kind: 'invoice_payment',
+        invoice: {
+          id: inv.id,
+          created_at: inv.created_at,
+          invoice_number: inv.invoice_number,
+          amount_paid: Number(inv.amount_paid ?? 0),
+          advance_applied: Number(inv.advance_applied ?? 0),
+          pending_amount: Number(inv.pending_amount ?? 0),
+          total_amount: Number(inv.total_amount ?? 0),
+        },
+        split: (splitRows || []) as InvoicePaymentSplitRow[],
+      });
     } catch (e) {
       console.error('Failed to load payment details:', e);
       setPaymentDetails(null);
@@ -275,68 +387,61 @@ export default function CustomerLedger() {
         </Card>
       ) : (
         <Card className="p-4">
-            <div className="text-center py-12 text-muted-foreground">
-              <FileText className="w-12 h-12 mx-auto mb-3 opacity-30" />
-              <p className="text-lg font-medium">Ledger View Not Available</p>
-              <p className="text-sm">Customer ledger feature is not yet implemented</p>
-            </div>
-            {/* Commented out until ledger view is implemented
-          <ScrollArea className="h-[70vh]">
-            <div className="space-y-2 pr-4">
-              {ledgerRows.map((row) => {
-                const debit = Number(row.debit_amount || 0);
-                const credit = Number(row.credit_amount || 0);
-                return (
-                  <button
-                    key={row.id}
-                    type="button"
-                    onClick={() => handleEntryClick(row)}
-                    className="w-full text-left flex items-center gap-3 p-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors"
-                  >
-                    <div className="w-8 h-8 rounded-full flex items-center justify-center bg-muted text-foreground">
-                      {getEntryIcon(row.entry_type)}
-                    </div>
+		  <ScrollArea className="h-[70vh]">
+		    <div className="space-y-2 pr-4">
+		      {ledgerRows.map((row) => {
+		        const debit = Number(row.debit_amount || 0);
+		        const credit = Number(row.credit_amount || 0);
+		        return (
+		          <button
+		            key={row.id}
+		            type="button"
+		            onClick={() => handleEntryClick(row)}
+		            className="w-full text-left flex items-center gap-3 p-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors"
+		          >
+		            <div className="w-8 h-8 rounded-full flex items-center justify-center bg-muted text-foreground">
+		              {getEntryIcon(row.entry_type)}
+		            </div>
 
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-medium truncate">
-                          {row.reference_label || `${getTypeLabel(row.entry_type)} #${row.reference_id?.slice(0, 8) || ''}`}
-                        </p>
-                        <Badge variant="outline" className="text-xs">
-                          {getTypeLabel(row.entry_type)}
-                        </Badge>
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        {format(new Date(row.created_at), 'dd MMM yyyy, hh:mm a')}
-                      </p>
-                    </div>
+		            <div className="flex-1 min-w-0">
+		              <div className="flex items-center gap-2">
+		                <p className="text-sm font-medium truncate">
+		                  {row.reference_label || `${getTypeLabel(row.entry_type)} #${row.reference_id?.slice(0, 8) || ''}`}
+		                </p>
+		                <Badge variant="outline" className="text-xs">
+		                  {getTypeLabel(row.entry_type)}
+		                </Badge>
+		              </div>
+		              <p className="text-xs text-muted-foreground">
+		                {format(new Date(row.created_at), 'dd MMM yyyy, hh:mm a')}
+		              </p>
+		            </div>
 
-                    <div className="text-right">
-                      {debit > 0 && <p className="text-sm font-medium">+₹{debit.toFixed(0)}</p>}
-                      {credit > 0 && <p className="text-sm font-medium">-₹{credit.toFixed(0)}</p>}
-                      <p className="text-xs text-muted-foreground">Net: ₹{Number(row.running_balance || 0).toFixed(0)}</p>
-                    </div>
-                  </button>
-                );
-              })}
+		            <div className="text-right">
+		              {debit > 0 && <p className="text-sm font-medium">+₹{debit.toFixed(0)}</p>}
+		              {credit > 0 && <p className="text-sm font-medium">-₹{credit.toFixed(0)}</p>}
+		              <p className="text-xs text-muted-foreground">Net: ₹{Number(row.running_balance || 0).toFixed(0)}</p>
+		            </div>
+		          </button>
+		        );
+		      })}
 
-              {ledgerRows.length === 0 && (
-                <div className="text-center py-12 text-muted-foreground">
-                  <FileText className="w-12 h-12 mx-auto mb-3 opacity-30" />
-                  <p>No ledger entries found</p>
-                </div>
-              )}
+		      {ledgerRows.length === 0 && (
+		        <div className="text-center py-12 text-muted-foreground">
+		          <FileText className="w-12 h-12 mx-auto mb-3 opacity-30" />
+		          <p>No ledger entries found</p>
+		        </div>
+		      )}
 
-              {hasMore && (
-                <div className="pt-2">
-                  <Button variant="outline" className="w-full" onClick={loadMore}>
-                    Load more
-                  </Button>
-                </div>
-              )}
-            </div>
-          </ScrollArea>
-          */}
+		      {hasMore && (
+		        <div className="pt-2">
+		          <Button variant="outline" className="w-full" onClick={loadMore}>
+		            Load more
+		          </Button>
+		        </div>
+		      )}
+		    </div>
+		  </ScrollArea>
         </Card>
       )}
 
@@ -355,33 +460,108 @@ export default function CustomerLedger() {
             <div className="text-sm text-muted-foreground">Payment not found</div>
           ) : (
             <div className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Date</span>
-                <span>{format(new Date(paymentDetails.payment_date), 'dd MMM yyyy, hh:mm a')}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Amount</span>
-                <span>₹{Number(paymentDetails.amount || 0).toFixed(0)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Method</span>
-                <span className="uppercase">{paymentDetails.payment_method}</span>
-              </div>
-              {paymentDetails.notes && (
-                <div className="pt-2">
-                  <div className="text-muted-foreground">Notes</div>
-                  <div>{paymentDetails.notes}</div>
-                </div>
-              )}
+              {paymentDetails.kind === 'customer_payment' ? (
+                <>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Date</span>
+                    <span>{format(new Date(paymentDetails.payment.payment_date), 'dd MMM yyyy, hh:mm a')}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Amount</span>
+                    <span>₹{Number(paymentDetails.payment.amount || 0).toFixed(0)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Method</span>
+                    <span className="uppercase">{paymentDetails.payment.payment_method}</span>
+                  </div>
 
-              {paymentDetails.invoice_id && (
-                <Button
-                  variant="outline"
-                  className="w-full mt-2"
-                  onClick={() => navigate(`/billing?invoiceId=${paymentDetails.invoice_id}`)}
-                >
-                  View related invoice
-                </Button>
+                  {Array.isArray(paymentDetails.split) && paymentDetails.split.length > 0 && (
+                    <div className="pt-2">
+                      <div className="text-muted-foreground mb-1">Split</div>
+                      <div className="space-y-1">
+                        {paymentDetails.split
+                          .filter((r) => Number(r.amount) > 0)
+                          .map((r, idx) => (
+                            <div key={`split-${idx}`} className="flex justify-between">
+                              <span className="uppercase">{r.payment_method}</span>
+                              <span>₹{Number(r.amount).toFixed(0)}</span>
+                            </div>
+                          ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {paymentDetails.payment.notes && (
+                    <div className="pt-2">
+                      <div className="text-muted-foreground">Notes</div>
+                      <div>{paymentDetails.payment.notes}</div>
+                    </div>
+                  )}
+
+                  {paymentDetails.payment.invoice_id && (
+                    <Button
+                      variant="outline"
+                      className="w-full mt-2"
+                      onClick={() => navigate(`/billing?invoiceId=${paymentDetails.payment.invoice_id}`)}
+                    >
+                      View related invoice
+                    </Button>
+                  )}
+                </>
+              ) : (
+                <>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Invoice</span>
+                    <span className="font-medium">{paymentDetails.invoice.invoice_number}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Date</span>
+                    <span>{format(new Date(paymentDetails.invoice.created_at), 'dd MMM yyyy, hh:mm a')}</span>
+                  </div>
+
+                  {Array.isArray(paymentDetails.split) && paymentDetails.split.length > 0 && (
+                    <div className="pt-2">
+                      <div className="text-muted-foreground mb-1">Split</div>
+                      <div className="space-y-1">
+                        {paymentDetails.split
+                          .filter((r) => Number(r.amount) > 0)
+                          .map((r, idx) => (
+                            <div key={`inv-split-${idx}`} className="flex justify-between">
+                              <span className="uppercase">{r.payment_method}</span>
+                              <span>₹{Number(r.amount).toFixed(0)}</span>
+                            </div>
+                          ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="pt-2 space-y-1">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Paid (cash/upi/card)</span>
+                      <span>₹{Number(paymentDetails.invoice.amount_paid).toFixed(0)}</span>
+                    </div>
+                    {Number(paymentDetails.invoice.advance_applied) > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Advance used</span>
+                        <span>₹{Number(paymentDetails.invoice.advance_applied).toFixed(0)}</span>
+                      </div>
+                    )}
+                    {Number(paymentDetails.invoice.pending_amount) > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Due created</span>
+                        <span>₹{Number(paymentDetails.invoice.pending_amount).toFixed(0)}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <Button
+                    variant="outline"
+                    className="w-full mt-2"
+                    onClick={() => navigate(`/billing?invoiceId=${paymentDetails.invoice.id}`)}
+                  >
+                    View related invoice
+                  </Button>
+                </>
               )}
             </div>
           )}

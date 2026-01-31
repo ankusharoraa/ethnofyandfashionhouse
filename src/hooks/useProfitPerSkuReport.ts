@@ -92,7 +92,8 @@ export function useProfitPerSkuReport() {
     setIsLoading(true);
     setError(null);
     try {
-      const { data, error } = await supabase.rpc("profit_per_sku_report", {
+      // Custom analytics RPC not present in generated types – cast client to any
+      const { data, error } = await (supabase as any).rpc("profit_per_sku_report", {
         p_from: toIsoStartOfDay(fromDate),
         p_to: toIsoNextDay(toDate),
         p_revenue_mode: revenueMode,
@@ -103,7 +104,7 @@ export function useProfitPerSkuReport() {
       setRows((data ?? []) as unknown as ProfitSkuRow[]);
 
       // Pull latest defaults (if none exist, keep local defaults).
-      const { data: sData, error: sErr } = await supabase
+      const { data: sData, error: sErr } = await (supabase as any)
         .from("profit_settings")
         .select("min_margin_pct,min_profit_per_unit")
         .order("updated_at", { ascending: false })
@@ -130,7 +131,7 @@ export function useProfitPerSkuReport() {
   const saveDefaults = useCallback(
     async (next: ProfitSettings) => {
       if (!user) return;
-      const { error } = await supabase.from("profit_settings").insert({
+      const { error } = await (supabase as any).from("profit_settings").insert({
         min_margin_pct: next.min_margin_pct,
         min_profit_per_unit: next.min_profit_per_unit,
         updated_by: user.id,
@@ -149,7 +150,7 @@ export function useProfitPerSkuReport() {
   const upsertSkuOverride = useCallback(
     async (skuId: string, patch: { cost_override?: number | null; min_margin_pct_override?: number | null; min_profit_per_unit_override?: number | null; note?: string | null }) => {
       if (!user) return;
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from("sku_profit_overrides")
         .upsert(
           {
@@ -173,7 +174,10 @@ export function useProfitPerSkuReport() {
   const clearSkuOverride = useCallback(
     async (skuId: string) => {
       if (!user) return;
-      const { error } = await supabase.from("sku_profit_overrides").delete().eq("sku_id", skuId);
+      const { error } = await (supabase as any)
+        .from("sku_profit_overrides")
+        .delete()
+        .eq("sku_id", skuId);
       if (error) {
         toast({ title: "Error", description: error.message, variant: "destructive" });
         return;

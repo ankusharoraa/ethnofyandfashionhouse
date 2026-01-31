@@ -56,7 +56,8 @@ export function useDeadStockAnalysis() {
     setIsLoading(true);
     setError(null);
     try {
-      const { data, error: rpcError } = await supabase.rpc("dead_stock_analysis", {
+      // Custom report RPC not present in generated types – cast client to any
+      const { data, error: rpcError } = await (supabase as any).rpc("dead_stock_analysis", {
         p_as_of: new Date().toISOString(),
         p_fast_days: 30,
         p_slow_days: 90,
@@ -65,7 +66,8 @@ export function useDeadStockAnalysis() {
 
       if (rpcError) throw rpcError;
 
-      const normalized: DeadStockRow[] = (data ?? []).map((r: any) => ({
+      const rowsData: any[] = (data as any[] | null) ?? [];
+      const normalized: DeadStockRow[] = rowsData.map((r: any) => ({
         sku_id: String(r.sku_id),
         sku_code: String(r.sku_code ?? ""),
         sku_name: String(r.sku_name ?? ""),
@@ -122,8 +124,9 @@ export function useDeadStockAnalysis() {
       if (!row) return false;
 
       setSavingSkuIds((prev) => new Set(prev).add(skuId));
-      try {
-        const { error: upsertError } = await supabase.from("dead_stock_actions").upsert(
+        try {
+          // dead_stock_actions is a custom helper table – use any-typed client
+          const { error: upsertError } = await (supabase as any).from("dead_stock_actions").upsert(
           {
             sku_id: skuId,
             discount_percent: row.discount_percent,

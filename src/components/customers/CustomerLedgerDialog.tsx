@@ -22,9 +22,11 @@ interface LedgerEntry {
   credit: number;
   balance: number; // outstanding due running balance (never negative)
   advance_balance: number; // running advance balance
+  invoice_id?: string | null;
   payment_received?: number;
   applied_to_due?: number;
   advance_created?: number;
+  split_payments?: Array<{ method: string; amount: number }>;
 }
 
 interface CustomerLedgerDialogProps {
@@ -42,6 +44,9 @@ export function CustomerLedgerDialog({
   const [invoices, setInvoices] = useState<any[]>([]);
   const [payments, setPayments] = useState<any[]>([]);
   const [balances, setBalances] = useState<{ outstanding: number; advance: number } | null>(null);
+  const [invoicePaymentsByInvoiceId, setInvoicePaymentsByInvoiceId] = useState<
+    Record<string, Array<{ method: string; amount: number }>>
+  >({});
 
   useEffect(() => {
     if (open && customer) {
@@ -86,9 +91,31 @@ export function CustomerLedgerDialog({
       // Fetch payments for this customer
       const { data: paymentData } = await supabase
         .from('customer_payments')
-        .select('id, payment_date, amount, payment_method, notes')
+        .select('id, payment_date, amount, payment_method, notes, invoice_id')
         .eq('customer_id', customer.id)
         .order('payment_date', { ascending: true });
+
+      // Fetch split payment breakdowns (cash/upi/card rows) for completed invoices
+      const invoiceIds = (invoiceData || []).map((inv) => inv.id).filter(Boolean);
+      if (invoiceIds.length > 0) {
+        const { data: invoicePayments } = await supabase
+          .from('invoice_payments')
+          .select('invoice_id, amount, payment_method')
+          .in('invoice_id', invoiceIds);
+
+        const grouped: Record<string, Array<{ method: string; amount: number }>> = {};
+        (invoicePayments || []).forEach((row: any) => {
+          const invoiceId = row.invoice_id as string | null;
+          if (!invoiceId) return;
+          (grouped[invoiceId] ||= []).push({
+            method: String(row.payment_method ?? 'payment'),
+            amount: Number(row.amount ?? 0),
+          });
+        });
+        setInvoicePaymentsByInvoiceId(grouped);
+      } else {
+        setInvoicePaymentsByInvoiceId({});
+      }
 
       setInvoices(invoiceData || []);
       setPayments(paymentData || []);
@@ -133,16 +160,21 @@ export function CustomerLedgerDialog({
 
     // Add payments (credits - customer paid us)
     payments.forEach((pmt) => {
+      const invoiceId = pmt.invoice_id ?? null;
+      const split = invoiceId ? invoicePaymentsByInvoiceId[invoiceId] : undefined;
       entries.push({
         id: pmt.id,
         date: pmt.payment_date,
         type: 'payment',
-        reference: pmt.notes || `${pmt.payment_method.toUpperCase()} Payment`,
+        reference:
+          pmt.notes || `${String(pmt.payment_method ?? 'payment').toUpperCase()} Payment`,
         debit: 0,
         credit: pmt.amount,
         balance: 0,
         advance_balance: 0,
+        invoice_id: invoiceId,
         payment_received: pmt.amount,
+        split_payments: split,
       });
     });
 
@@ -180,7 +212,7 @@ export function CustomerLedgerDialog({
     });
 
     return entries;
-  }, [invoices, payments]);
+  }, [invoices, payments, invoicePaymentsByInvoiceId]);
 
   const totalDebits = ledgerEntries.reduce((sum, e) => sum + e.debit, 0);
   const totalCredits = ledgerEntries.reduce((sum, e) => sum + e.credit, 0);
@@ -280,6 +312,18 @@ export function CustomerLedgerDialog({
                     {/* Payment split */}
                     {entry.type === 'payment' && (
                       <div className="mt-1 space-y-0.5 text-xs text-muted-foreground">
+                        {Array.isArray(entry.split_payments) && entry.split_payments.length > 0 && (
+                          <div className="space-y-0.5">
+                            {entry.split_payments
+                              .filter((sp) => Number(sp.amount) > 0)
+                              .map((sp, idx) => (
+                                <div key={`${entry.id}-sp-${idx}`} className="flex justify-between gap-2">
+                                  <span>{sp.method.toUpperCase()}</span>
+                                  <span>₹{Number(sp.amount).toFixed(0)}</span>
+                                </div>
+                              ))}
+                          </div>
+                        )}
                         <div className="flex justify-between gap-2">
                           <span>Payment Received</span>
                           <span>₹{(entry.payment_received ?? entry.credit).toFixed(0)}</span>

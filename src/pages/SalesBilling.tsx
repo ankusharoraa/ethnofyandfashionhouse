@@ -48,7 +48,8 @@ export default function SalesBilling() {
     fetchInvoices,
   } = useBilling();
   const { customers } = useCustomers();
-  const { variantSkus, findByBarcode } = useSKUs();
+  // Use the full SKU list so items created via purchases are visible in sales.
+  const { skus, findByBarcode } = useSKUs();
   const { hasPermission } = usePermissions();
   const { toast } = useToast();
 
@@ -118,13 +119,17 @@ export default function SalesBilling() {
     }
   };
 
-  const handleSalesPaymentConfirm = async (
-    paymentMethod: PaymentMethod,
-    customerName?: string,
-    customerPhone?: string,
-    customerId?: string,
-    amountPaid?: number
-  ) => {
+  const handleSalesPaymentConfirm = async (args: {
+    customerId?: string;
+    customerName?: string;
+    customerPhone?: string;
+    cash: number;
+    upi: number;
+    card: number;
+    advanceUsed: number;
+    credit: number;
+    confirmOverpay: boolean;
+  }) => {
     if (!hasPermission('sales_bill')) {
       toast({
         title: 'Permission Denied',
@@ -137,11 +142,17 @@ export default function SalesBilling() {
     setIsProcessing(true);
     try {
       const result = await createAndCompleteBill(
-        customerName,
-        customerPhone,
-        paymentMethod,
-        customerId,
-        amountPaid
+        args.customerName,
+        args.customerPhone,
+        args.customerId,
+        {
+          cash: args.cash,
+          upi: args.upi,
+          card: args.card,
+          advanceUsed: args.advanceUsed,
+          credit: args.credit,
+          confirmOverpay: args.confirmOverpay,
+        },
       );
       if (result) {
         setShowPayment(false);
@@ -334,7 +345,7 @@ export default function SalesBilling() {
       <SKUSearchDialog
         open={showSearch}
         onClose={() => setShowSearch(false)}
-        skus={variantSkus}
+        skus={skus}
         onSelect={addToCart}
         onScanRequest={() => {
           setShowSearch(false);
@@ -350,6 +361,7 @@ export default function SalesBilling() {
         open={showPayment}
         onClose={() => setShowPayment(false)}
         totalAmount={totals.totalAmount}
+        mode="sale"
         onConfirm={handleSalesPaymentConfirm}
         isProcessing={isProcessing}
       />

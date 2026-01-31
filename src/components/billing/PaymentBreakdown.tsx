@@ -4,24 +4,35 @@ import { Card } from '@/components/ui/card';
 interface PaymentBreakdownProps {
   billTotal: number;
   customerAdvance: number;
+  /** Amount entered via cash/upi/card (exclude advance/credit). */
   amountPaid: number;
+  /** Explicit advance used (manual or auto) */
+  advanceUsed: number;
   showCustomerAdvance: boolean;
+  advanceLabel?: string;
 }
 
 export function PaymentBreakdown({
   billTotal,
   customerAdvance,
   amountPaid,
+  advanceUsed: advanceUsedProp,
   showCustomerAdvance,
+  advanceLabel,
 }: PaymentBreakdownProps) {
   const advanceAvailable = Math.max(0, customerAdvance);
-  const advanceUsed = showCustomerAdvance ? Math.min(advanceAvailable, billTotal) : 0;
+  const advanceUsed = showCustomerAdvance
+    ? Math.min(advanceAvailable, Math.max(0, advanceUsedProp))
+    : 0;
   const remainingPayable = Math.max(0, billTotal - advanceUsed);
   const remainingAdvance = showCustomerAdvance
     ? Math.max(0, advanceAvailable - advanceUsed)
     : 0;
 
-  const pendingAfterPayment = Math.max(0, remainingPayable - Math.max(0, amountPaid));
+  const pendingAfterPayment = Math.max(
+    0,
+    remainingPayable - Math.max(0, amountPaid),
+  );
 
   return (
     <Card className="p-3 bg-muted/30">
@@ -31,7 +42,9 @@ export function PaymentBreakdown({
       </div>
 
       <div className="flex items-center justify-between mt-1">
-        <span className="text-xs text-muted-foreground">Advance used</span>
+        <span className="text-xs text-muted-foreground">
+          {advanceLabel ?? 'Advance used'}
+        </span>
         <span className="text-sm font-semibold">₹{advanceUsed.toFixed(0)}</span>
       </div>
 

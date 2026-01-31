@@ -1,5 +1,4 @@
-import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { useEffect, useMemo, useState } from 'react';
 import {
   CreditCard,
   Banknote,
@@ -18,6 +17,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { CustomerSearchCombobox } from './CustomerSearchCombobox';
 import { PaymentBreakdown } from '@/components/billing/PaymentBreakdown';
 import type { PaymentMethod } from '@/hooks/useBilling';
@@ -28,45 +28,50 @@ interface PaymentDialogProps {
   onClose: () => void;
   totalAmount: number;
   customers: Customer[];
-  onConfirm: (
-    paymentMethod: PaymentMethod,
-    customerName?: string,
-    customerPhone?: string,
-    customerId?: string,
-    amountPaid?: number
-  ) => void;
+  mode?: 'sale' | 'purchase';
+  onConfirm: (args: {
+    customerId?: string;
+    customerName?: string;
+    customerPhone?: string;
+    cash: number;
+    upi: number;
+    card: number;
+    advanceUsed: number;
+    credit: number;
+    confirmOverpay: boolean;
+  }) => void;
   isProcessing: boolean;
 }
-
-const paymentMethods: { method: PaymentMethod; label: string; icon: typeof Banknote }[] = [
-  { method: 'cash', label: 'Cash', icon: Banknote },
-  { method: 'upi', label: 'UPI', icon: Smartphone },
-  { method: 'card', label: 'Card', icon: CreditCard },
-  { method: 'credit', label: 'Credit', icon: Clock },
-];
 
 export function PaymentDialog({
   open,
   onClose,
   totalAmount,
   customers,
+  mode,
   onConfirm,
   isProcessing,
 }: PaymentDialogProps) {
-  const [selectedMethod, setSelectedMethod] = useState<PaymentMethod>('cash');
+  const isSale = mode === 'sale';
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
-  const [amountPaid, setAmountPaid] = useState<string>('');
-  const [amountTouched, setAmountTouched] = useState(false);
+  const [cashAmount, setCashAmount] = useState<string>('');
+  const [upiAmount, setUpiAmount] = useState<string>('');
+  const [cardAmount, setCardAmount] = useState<string>('');
+  const [creditAmount, setCreditAmount] = useState<string>('');
+  const [advanceUsed, setAdvanceUsed] = useState<string>('');
 
   // Reset state when dialog opens
   useEffect(() => {
     if (open) {
-      setSelectedMethod('cash');
       setSelectedCustomerId('');
       setSelectedCustomer(null);
-      setAmountPaid(totalAmount.toString());
-      setAmountTouched(false);
+      const full = totalAmount.toString();
+      setCashAmount(full);
+      setUpiAmount('');
+      setCardAmount('');
+      setCreditAmount('');
+      setAdvanceUsed('');
     }
   }, [open, totalAmount]);
 
@@ -75,69 +80,70 @@ export function PaymentDialog({
     setSelectedCustomer(customer);
   };
 
-  // Note: Advance payments not yet implemented
-  const customerAdvance = 0;
-  const advanceUsed = 0;
-  const amountDueAfterAdvance = totalAmount;
+  const customerAdvance = (selectedCustomer as any)?.advance_balance ?? 0;
 
-  // When selecting a customer with advance, auto-set amount paying to remaining payable (unless user already edited)
-  useEffect(() => {
-    if (!open) return;
-    if (selectedMethod === 'credit') return;
-   if (amountTouched) return;
-   // Default to full bill amount - backend will apply advance automatically
-   // This ensures overpayments are captured correctly
-   setAmountPaid(totalAmount.toString());
- }, [open, selectedMethod, totalAmount, amountTouched]);
+  const cash = parseFloat(cashAmount) || 0;
+  const upi = parseFloat(upiAmount) || 0;
+  const card = parseFloat(cardAmount) || 0;
+  const credit = parseFloat(creditAmount) || 0;
+  const advUsed = parseFloat(advanceUsed) || 0;
 
-  // Calculate amounts (based on payable after advance)
-  const parsedPaid = parseFloat(amountPaid) || 0;
-  const pendingAmount = Math.max(0, amountDueAfterAdvance - parsedPaid);
-  const isCredit = selectedMethod === 'credit';
-  const hasCredit = isCredit || pendingAmount > 0;
-  const creditDisabled = hasCredit && !selectedCustomer;
+  const basePaid = cash + upi + card;
+  const remainingBeforeAdvance = Math.max(0, totalAmount - basePaid);
+  const autoAdvanceUsed = isSale
+    ? Math.min(Math.max(0, customerAdvance), remainingBeforeAdvance)
+    : 0;
 
-  const isOverpay = !isCredit && parsedPaid > amountDueAfterAdvance;
-  const overpayExcess = Math.max(0, parsedPaid - amountDueAfterAdvance);
-  const overpayDisabled = isOverpay && !selectedCustomer;
+  const effectiveAdvanceUsed = isSale ? autoAdvanceUsed : advUsed;
 
-  // For full credit, amount paid is 0
-  const effectivePaid = isCredit ? 0 : parsedPaid;
-  const effectivePending = isCredit ? amountDueAfterAdvance : pendingAmount;
+  const moneyTotal = basePaid + effectiveAdvanceUsed;
+  const allocTotal = moneyTotal + credit;
+  const remainingPayable = Math.max(0, totalAmount - allocTotal);
+  const overpay = Math.max(0, moneyTotal - totalAmount);
+
+  const creditDisabled = (credit > 0 || remainingPayable > 0) && !selectedCustomer;
+  const overpayDisabled = overpay > 0 && !selectedCustomer;
+
+  const walkInPartialDisabled = !selectedCustomer && remainingPayable > 0;
+
+  const effectiveCredit = useMemo(() => {
+    if (!selectedCustomer) return credit;
+    // Backend auto-credits any remaining payable for customers.
+    return Math.max(credit, remainingPayable);
+  }, [credit, remainingPayable, selectedCustomer]);
 
   const handleConfirm = () => {
-    if (creditDisabled || overpayDisabled) return;
+    if (creditDisabled || overpayDisabled || walkInPartialDisabled) return;
+    const confirmOverpay = overpay > 0 ? window.confirm(`Extra ₹${overpay.toFixed(0)} will be added to customer advance. Continue?`) : true;
+    if (!confirmOverpay) return;
 
-    // Determine payment method - if partial payment, still use selected method but pass amount
-    const method = isCredit ? 'credit' : selectedMethod;
-    
-    onConfirm(
-      method,
-      selectedCustomer?.name,
-      selectedCustomer?.phone || undefined,
-      selectedCustomer?.id,
-      isCredit ? 0 : parsedPaid
-    );
+    onConfirm({
+      customerId: selectedCustomer?.id,
+      customerName: selectedCustomer?.name,
+      customerPhone: selectedCustomer?.phone || undefined,
+      cash,
+      upi,
+      card,
+      advanceUsed: effectiveAdvanceUsed,
+      credit: effectiveCredit,
+      confirmOverpay,
+    });
   };
 
-  const handleAmountChange = (value: string) => {
-    const numValue = parseFloat(value) || 0;
+  const canUseAdvance = !isSale && !!selectedCustomer && customerAdvance > 0;
 
-    setAmountTouched(true);
-
-    // Walk-in (no customer): prevent overpay since we can't store advance against anyone.
-    if (!selectedCustomer && numValue > amountDueAfterAdvance) {
-      setAmountPaid(amountDueAfterAdvance.toString());
-      return;
-    }
-
-    setAmountPaid(value);
+  const handleUseMaxAdvance = () => {
+    if (!canUseAdvance) return;
+    const base = cash + upi + card + credit;
+    const remainingBeforeAdvance = Math.max(0, totalAmount - base);
+    const toUse = Math.min(customerAdvance, remainingBeforeAdvance);
+    setAdvanceUsed(toUse > 0 ? toUse.toString() : '');
   };
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-[360px] p-4">
-        <DialogHeader className="pb-2">
+      <DialogContent className="w-[95vw] max-w-[95vw] sm:max-w-md md:max-w-lg lg:max-w-xl p-0">
+        <DialogHeader className="px-4 pt-4 pb-2">
           <DialogTitle className="flex items-center gap-2 text-base">
             <Receipt className="w-4 h-4 text-primary" />
             Checkout
@@ -147,7 +153,8 @@ export function PaymentDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-3">
+        <ScrollArea className="max-h-[75vh] px-4">
+          <div className="space-y-3 pb-4">
           {/* Customer Balance Info - Show before bill */}
           {selectedCustomer && (
             <div className="bg-muted/50 rounded-lg p-2 text-xs space-y-1">
@@ -161,6 +168,11 @@ export function PaymentDialog({
                   <span className="font-semibold">₹{selectedCustomer.outstanding_balance.toFixed(0)}</span>
                 </div>
               )}
+
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Advance balance</span>
+                <span className="font-semibold">₹{Math.max(0, customerAdvance).toFixed(0)}</span>
+              </div>
             </div>
           )}
 
@@ -172,63 +184,133 @@ export function PaymentDialog({
           <PaymentBreakdown
             billTotal={totalAmount}
             customerAdvance={customerAdvance}
-            amountPaid={isCredit ? 0 : parsedPaid}
+            amountPaid={basePaid}
+            advanceUsed={effectiveAdvanceUsed}
             showCustomerAdvance={!!selectedCustomer}
+            advanceLabel={isSale ? 'Advance auto-applied' : 'Advance used'}
           />
 
-          {/* Payment Methods - Compact Icons */}
-          <div className="grid grid-cols-4 gap-1.5">
-            {paymentMethods.map(({ method, label, icon: Icon }) => (
-              <motion.button
-                key={method}
-                type="button"
-                onClick={() => setSelectedMethod(method)}
-                className={`flex flex-col items-center gap-1 p-2 rounded-lg border transition-colors text-xs ${
-                  selectedMethod === method
-                    ? 'border-primary bg-primary/10 text-primary'
-                    : 'border-border hover:border-primary/50'
-                }`}
-                whileTap={{ scale: 0.95 }}
-              >
-                <Icon className="w-4 h-4" />
-                <span className="text-[10px]">{label}</span>
-              </motion.button>
-            ))}
-          </div>
-
-          {/* Amount Paid - Only for non-credit */}
-          {!isCredit && (
-            <div>
-             <Label className="text-xs">Cash Tendered</Label>
-              <div className="relative mt-1">
-                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">₹</span>
+          {/* Split payment fields */}
+          <div className="space-y-2">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+              <div>
+                <Label className="text-xs flex items-center gap-1"><Banknote className="w-3 h-3" /> Cash</Label>
                 <Input
                   type="number"
-                  value={amountPaid}
-                  onChange={(e) => handleAmountChange(e.target.value)}
-                 className="pl-6 h-9 font-medium"
-                  max={!selectedCustomer ? amountDueAfterAdvance : undefined}
+                  value={cashAmount}
+                  onChange={(e) => setCashAmount(e.target.value)}
+                  className="mt-1 h-8 text-sm"
+                  min={0}
                 />
               </div>
-              {pendingAmount > 0 && (
-                <p className="text-xs text-orange-600 mt-1">
-                  ₹{pendingAmount.toFixed(0)} will be added to credit
-                </p>
-              )}
+              <div>
+                <Label className="text-xs flex items-center gap-1"><Smartphone className="w-3 h-3" /> UPI</Label>
+                <Input
+                  type="number"
+                  value={upiAmount}
+                  onChange={(e) => setUpiAmount(e.target.value)}
+                  className="mt-1 h-8 text-sm"
+                  min={0}
+                />
+              </div>
+              <div>
+                <Label className="text-xs flex items-center gap-1"><CreditCard className="w-3 h-3" /> Card</Label>
+                <Input
+                  type="number"
+                  value={cardAmount}
+                  onChange={(e) => setCardAmount(e.target.value)}
+                  className="mt-1 h-8 text-sm"
+                  min={0}
+                />
+              </div>
+              <div>
+                <Label className="text-xs flex items-center gap-1"><Clock className="w-3 h-3" /> Credit</Label>
+                <Input
+                  type="number"
+                  value={creditAmount}
+                  onChange={(e) => setCreditAmount(e.target.value)}
+                  className="mt-1 h-8 text-sm"
+                  min={0}
+                  disabled={!selectedCustomer}
+                />
+                {!selectedCustomer && (
+                  <p className="text-[10px] text-muted-foreground mt-0.5">Select customer to use credit</p>
+                )}
+              </div>
+            </div>
 
-              {isOverpay && selectedCustomer && (
-                <p className="text-xs text-muted-foreground mt-1">
-                  ₹{overpayExcess.toFixed(0)} will be added to advance balance
+            {!isSale && (
+            <div>
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex flex-col flex-1">
+                  <Label className="text-xs">Advance Used</Label>
+                  <Input
+                    type="number"
+                    value={advanceUsed}
+                    onChange={(e) => setAdvanceUsed(e.target.value)}
+                    className="mt-1 h-8 text-sm"
+                    min={0}
+                    disabled={!canUseAdvance}
+                  />
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="mt-5 h-7 px-2 text-xs"
+                  disabled={!canUseAdvance}
+                  onClick={handleUseMaxAdvance}
+                >
+                  Use max
+                </Button>
+              </div>
+              {canUseAdvance && (
+                <p className="text-[10px] text-muted-foreground mt-0.5">
+                  Available advance: ₹{customerAdvance.toFixed(0)}
                 </p>
               )}
             </div>
-          )}
+            )}
 
-          {/* Customer - Required for credit/partial */}
-          {(hasCredit || true) && (
+            <div className="text-xs bg-muted/50 rounded-md p-2 space-y-1">
+              <div className="flex justify-between">
+                <span>Total entered</span>
+                <span className="font-medium">₹{allocTotal.toFixed(0)}</span>
+              </div>
+
+              {isSale && effectiveAdvanceUsed > 0 && (
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Advance auto-applied</span>
+                  <span>₹{effectiveAdvanceUsed.toFixed(0)}</span>
+                </div>
+              )}
+
+              {remainingPayable > 0 && (
+                <div className="flex justify-between text-orange-600">
+                  <span>Remaining payable</span>
+                  <span>₹{remainingPayable.toFixed(0)}</span>
+                </div>
+              )}
+              {selectedCustomer && remainingPayable > 0 && (
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Will become credit</span>
+                  <span>₹{remainingPayable.toFixed(0)}</span>
+                </div>
+              )}
+              {overpay > 0 && (
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Overpayment → advance</span>
+                  <span>₹{overpay.toFixed(0)}</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Customer selection (required for credit / advance / overpay) */}
+          <div>
             <div>
               <Label className="text-xs">
-                Customer {hasCredit && <span className="text-destructive">*</span>}
+                Customer
               </Label>
               <div className="mt-1">
                 <CustomerSearchCombobox
@@ -238,10 +320,10 @@ export function PaymentDialog({
                 />
               </div>
             </div>
-          )}
+          </div>
 
           {/* Credit Summary - Compact */}
-          {hasCredit && selectedCustomer && (
+          {selectedCustomer && (credit > 0 || remainingPayable > 0) && (
             <div className="text-xs bg-orange-50 border border-orange-200 rounded-md p-2 space-y-1 dark:bg-orange-950/20 dark:border-orange-800">
               <div className="flex justify-between">
                 <span>Current Due</span>
@@ -249,11 +331,11 @@ export function PaymentDialog({
               </div>
               <div className="flex justify-between text-orange-700 dark:text-orange-400">
                 <span>+ This Bill</span>
-                <span>₹{effectivePending.toFixed(0)}</span>
+                <span>₹{Math.max(0, effectiveCredit).toFixed(0)}</span>
               </div>
               <div className="flex justify-between pt-1 border-t border-orange-300 dark:border-orange-700 font-semibold">
                 <span>New Balance</span>
-                <span>₹{(selectedCustomer.outstanding_balance + effectivePending).toFixed(0)}</span>
+                <span>₹{(selectedCustomer.outstanding_balance + Math.max(0, effectiveCredit)).toFixed(0)}</span>
               </div>
             </div>
           )}
@@ -270,16 +352,24 @@ export function PaymentDialog({
               Overpayment requires selecting a customer
             </p>
           )}
+
+          {walkInPartialDisabled && (
+            <p className="text-xs text-destructive">
+              Walk-in customers must pay the full amount (no credit).
+            </p>
+          )}
         </div>
 
-        <DialogFooter className="pt-2 gap-2">
+        </ScrollArea>
+
+        <DialogFooter className="px-4 pb-4 pt-2 gap-2">
           <Button variant="outline" size="sm" onClick={onClose} disabled={isProcessing}>
             Cancel
           </Button>
           <Button
             size="sm"
             onClick={handleConfirm}
-            disabled={isProcessing || creditDisabled || overpayDisabled}
+            disabled={isProcessing || creditDisabled || overpayDisabled || walkInPartialDisabled}
           >
             {isProcessing ? 'Processing...' : 'Confirm'}
           </Button>

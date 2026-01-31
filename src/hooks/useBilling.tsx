@@ -416,18 +416,32 @@ export function useBilling() {
     return invoice;
   };
 
-  // Complete sales invoice (atomically deducts stock)
-  const completeInvoice = async (
+  // Complete sales invoice with split payments (cash / upi / card / advance / credit)
+  // This uses the new complete_invoice_split RPC which internally calls complete_invoice
+  // to perform stock validation and deduction.
+  const completeInvoiceSplit = async (
     invoiceId: string,
-    paymentMethod: PaymentMethod = 'cash',
-    customerId?: string,
-    amountPaid?: number
-  ): Promise<{ success: boolean; error?: string }> => {
-    const { data, error } = await supabase.rpc('complete_invoice', {
+    options: {
+      customerId?: string;
+      cash?: number;
+      upi?: number;
+      card?: number;
+      advanceUsed?: number;
+      credit?: number;
+      confirmOverpay?: boolean;
+    }
+  ): Promise<{ success: boolean; error?: string; overpay?: number; pending?: number }> => {
+    const { customerId, cash, upi, card, advanceUsed, credit, confirmOverpay } = options;
+
+    const { data, error } = await supabase.rpc('complete_invoice_split', {
       p_invoice_id: invoiceId,
-      p_payment_method: paymentMethod,
-      p_amount_paid: amountPaid ?? null,
       p_customer_id: customerId || null,
+      p_cash: cash ?? 0,
+      p_upi: upi ?? 0,
+      p_card: card ?? 0,
+      p_advance_used: advanceUsed ?? 0,
+      p_credit: credit ?? 0,
+      p_confirm_overpay: confirmOverpay ?? false,
     });
 
     if (error) {
@@ -440,7 +454,7 @@ export function useBilling() {
       return { success: false, error: error.message };
     }
 
-    const result = data as { success: boolean; error?: string; message?: string };
+    const result = data as { success: boolean; error?: string; overpay?: number; pending?: number };
     
     if (!result.success) {
       toast({
@@ -456,10 +470,14 @@ export function useBilling() {
       description: 'Bill generated and stock updated',
     });
 
+    // Notify other parts of the app (e.g. Inventory screens) to refresh stock immediately.
+    // This avoids needing a route change to see updated quantities.
+    window.dispatchEvent(new CustomEvent('inventory:refresh'));
+
     clearCart();
     await fetchInvoices();
-    
-    return { success: true };
+
+    return { success: true, overpay: result.overpay, pending: result.pending };
   };
 
   // Complete purchase invoice (atomically adds stock)
@@ -500,6 +518,9 @@ export function useBilling() {
       description: 'Purchase bill completed and stock updated',
     });
 
+    // Purchases also change inventory levels.
+    window.dispatchEvent(new CustomEvent('inventory:refresh'));
+
     clearCart();
     await fetchInvoices();
     
@@ -508,7 +529,7 @@ export function useBilling() {
 
   // Cancel sales invoice (restores stock if completed)
   const cancelInvoice = async (invoiceId: string): Promise<{ success: boolean; error?: string }> => {
-    const { data, error } = await supabase.rpc('cancel_invoice', {
+    const { data, error } = await (supabase as any).rpc('cancel_invoice', {
       p_invoice_id: invoiceId,
     });
 
@@ -545,7 +566,7 @@ export function useBilling() {
 
   // Cancel purchase invoice (restores stock if completed)
   const cancelPurchaseInvoice = async (invoiceId: string): Promise<{ success: boolean; error?: string }> => {
-    const { data, error } = await supabase.rpc('cancel_purchase_invoice', {
+    const { data, error } = await (supabase as any).rpc('cancel_purchase_invoice', {
       p_invoice_id: invoiceId,
     });
 
@@ -582,11 +603,17 @@ export function useBilling() {
 
   // Quick bill: create and complete sales in one step
   const createAndCompleteBill = async (
-    customerName?: string,
-    customerPhone?: string,
-    paymentMethod: PaymentMethod = 'cash',
-    customerId?: string,
-    amountPaid?: number
+    customerName: string | undefined,
+    customerPhone: string | undefined,
+    customerId: string | undefined,
+    split: {
+      cash: number;
+      upi: number;
+      card: number;
+      advanceUsed: number;
+      credit: number;
+      confirmOverpay: boolean;
+    }
   ) => {
     // Validate cart
     if (cartItems.length === 0) {
@@ -598,16 +625,27 @@ export function useBilling() {
       return null;
     }
 
-    // Calculate total for validation
     const totals = calculateTotals();
-    const effectivePaid = paymentMethod === 'credit' ? 0 : (amountPaid ?? totals.totalAmount);
-    const pendingAmount = totals.totalAmount - effectivePaid;
+    const { cash, upi, card, advanceUsed, credit, confirmOverpay } = split;
 
-    // Credit or partial payment requires a customer
-    if ((paymentMethod === 'credit' || pendingAmount > 0) && !customerId) {
+    const moneyTotal = cash + upi + card + advanceUsed;
+    const allocTotal = moneyTotal + credit;
+
+    // Split requires that either it's a walk-in (no credit/advance) or a customer is selected
+    if (!customerId && (advanceUsed > 0 || credit > 0)) {
       toast({
         title: 'Customer Required',
-        description: 'Credit or partial payment requires selecting an existing customer',
+        description: 'Using advance or credit requires selecting an existing customer',
+        variant: 'destructive',
+      });
+      return null;
+    }
+
+    // Simple client-side sanity check; exact validation is in the RPC
+    if (allocTotal < totals.totalAmount - 0.01) {
+      toast({
+        title: 'Underpayment',
+        description: 'Total split amount does not cover the bill amount',
         variant: 'destructive',
       });
       return null;
@@ -638,8 +676,16 @@ export function useBilling() {
     const invoice = await createDraftInvoice('sale', customerName, customerPhone, undefined, undefined, customerId);
     if (!invoice) return null;
 
-    // Complete the invoice (atomic stock update)
-    const result = await completeInvoice(invoice.id, paymentMethod, customerId, amountPaid);
+    // Complete the invoice with split payments
+    const result = await completeInvoiceSplit(invoice.id, {
+      customerId,
+      cash,
+      upi,
+      card,
+      advanceUsed,
+      credit,
+      confirmOverpay,
+    });
     
     if (!result.success) {
       return null;
@@ -697,7 +743,7 @@ export function useBilling() {
     clearCart,
     calculateTotals,
     createDraftInvoice,
-    completeInvoice,
+    completeInvoiceSplit,
     completePurchaseInvoice,
     cancelInvoice,
     cancelPurchaseInvoice,

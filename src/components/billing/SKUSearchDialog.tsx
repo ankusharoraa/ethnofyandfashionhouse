@@ -208,7 +208,13 @@ export function SKUSearchDialog({
                                   <Edit2 className="w-4 h-4" />
                                 </Button>
                               )}
-                              <Button size="icon" variant="ghost" className="shrink-0" aria-label="Select product">
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="shrink-0"
+                                aria-label="Select product"
+                                onClick={() => handleSelect(sku)}
+                              >
                                 <Plus className="w-4 h-4" />
                               </Button>
                             </div>

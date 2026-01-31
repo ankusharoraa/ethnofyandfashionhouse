@@ -196,13 +196,17 @@ export default function Billing() {
     }
   };
 
-  const handleSalesPaymentConfirm = async (
-    paymentMethod: PaymentMethod,
-    customerName?: string,
-    customerPhone?: string,
-    customerId?: string,
-    amountPaid?: number
-  ) => {
+  const handleSalesPaymentConfirm = async (args: {
+    customerId?: string;
+    customerName?: string;
+    customerPhone?: string;
+    cash: number;
+    upi: number;
+    card: number;
+    advanceUsed: number;
+    credit: number;
+    confirmOverpay: boolean;
+  }) => {
     if (!hasPermission('sales_bill')) {
       toast({
         title: 'Permission Denied',
@@ -214,7 +218,19 @@ export default function Billing() {
 
     setIsProcessing(true);
     try {
-      const result = await createAndCompleteBill(customerName, customerPhone, paymentMethod, customerId, amountPaid);
+      const result = await createAndCompleteBill(
+        args.customerName,
+        args.customerPhone,
+        args.customerId,
+        {
+          cash: args.cash,
+          upi: args.upi,
+          card: args.card,
+          advanceUsed: args.advanceUsed,
+          credit: args.credit,
+          confirmOverpay: args.confirmOverpay,
+        },
+      );
       if (result) {
         setShowPayment(false);
         toast({
@@ -607,6 +623,7 @@ export default function Billing() {
         open={showPayment}
         onClose={() => setShowPayment(false)}
         totalAmount={totals.totalAmount}
+        mode="sale"
         onConfirm={handleSalesPaymentConfirm}
         isProcessing={isProcessing}
       />

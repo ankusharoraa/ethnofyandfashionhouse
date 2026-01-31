@@ -303,6 +303,28 @@ export function useSKUs() {
     }
   }, [user]);
 
+  // Allow other flows (sales/purchase completion, cancellations, etc.) to request
+  // an immediate stock refresh without forcing a route change.
+  useEffect(() => {
+    if (!user) return;
+
+    let raf: number | null = null;
+    const onRefresh = () => {
+      // Coalesce bursts (e.g. multiple updates from a single checkout).
+      if (raf) window.cancelAnimationFrame(raf);
+      raf = window.requestAnimationFrame(() => {
+        void fetchSKUs();
+      });
+    };
+
+    window.addEventListener('inventory:refresh', onRefresh);
+    return () => {
+      if (raf) window.cancelAnimationFrame(raf);
+      window.removeEventListener('inventory:refresh', onRefresh);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+
   return {
     skus,
     variantSkus,
